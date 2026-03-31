@@ -1,4 +1,4 @@
-<!-- File 9 of 8: wordcloud.php - COMPLETE WITH USERNAME IN EMOJI LOG -->
+<!-- File 9 of 8: wordcloud.php - COMPLETE FINAL VERSION -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -419,7 +419,7 @@
     <!-- Admin Emoji Stats Panel -->
     <div class="admin-emoji-stats hidden" id="admin-emoji-stats">
         <h3>📊 Emoji Statistics (All-Time)</h3>
-        <div class="lap-info">Lap: <span id="lap-number">0</span></div>
+        <div class="lap-info">Lap: <span id="lap-number">1</span></div>
         <div class="lap-info" style="background: #27ae60;">Total Votes: <span id="total-votes">0</span></div>
         <div class="emoji-stats" id="admin-emoji-display"></div>
     </div>
@@ -698,7 +698,7 @@
                         const date = new Date(entry.time * 1000);
                         const timeStr = date.toLocaleTimeString();
                         const emoji = EMOJI_MAP[entry.emoji] || entry.emoji;
-                        const lapNum = entry.lap || 0;
+                        const lapNum = entry.lap || 1;
                         const userDisplay = entry.username || 'Anonymous';
                         
                         return '<tr>' +
@@ -822,10 +822,10 @@
                 document.getElementById('stat-happy').textContent = lap.happy || 0;
                 document.getElementById('stat-help').textContent = lap.help || 0;
                 
-                // Admin stats show ALL-TIME totals
+                // Admin stats show ALL-TIME totals (FIXED - uses data.allTime)
                 if (isAdmin && showEmojiStatsMode) {
-                    const all = data.allTime;
-                    document.getElementById('lap-number').textContent = data.lapNumber || 0;
+                    const all = data.allTime;  // ← This is ALL-TIME, not current lap!
+                    document.getElementById('lap-number').textContent = data.lapNumber || 1;
                     document.getElementById('total-votes').textContent = all.total || 0;
                     
                     const display = document.getElementById('admin-emoji-display');

@@ -1,5 +1,5 @@
 <?php
-// File 2 of 8: api.php - COMPLETE WITH USERNAME FOR EMOJI VOTES
+// File 2 of 8: api.php - FIXED LAP NUMBERING & ALL-TIME STATS
 
 // NO-CACHE HEADERS
 header('Cache-Control: no-cache, no-store, must-revalidate');
@@ -61,10 +61,10 @@ function writeJsonLocked($file, $data) {
     return false;
 }
 
-// Helper: Get current lap number
+// Helper: Get current lap number (STARTS AT 1, NOT 0)
 function getCurrentLap($dataDir) {
     $laps = readJsonLocked($dataDir . 'emoji_laps.json');
-    return isset($laps['current']) ? $laps['current'] : 0;
+    return isset($laps['current']) ? $laps['current'] : 1;  // ← FIXED: Default to 1
 }
 
 // Get Action
@@ -171,7 +171,7 @@ if ($action === 'emoji_vote') {
         exit;
     }
     
-    // Record vote with username
+    // Record vote with username and lap number
     $votes[$ip] = array(
         'emoji' => $emoji, 
         'time' => time(), 
@@ -191,37 +191,41 @@ if ($action === 'emoji_vote') {
     exit;
 }
 
-// 6. EMOJI METER: Get Stats
+// 6. EMOJI METER: Get Stats (ALL-TIME + CURRENT LAP)
 if ($action === 'get_emoji_stats') {
     $votes = readJsonLocked($dataDir . 'emoji_votes.json');
     $currentLap = getCurrentLap($dataDir);
     
-    $stats = array(
+    // ALL-TIME stats: Count ALL votes regardless of lap
+    $allTime = array(
         'done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0,
-        'total' => 0, 'lap' => $currentLap
+        'total' => 0
     );
     
-    $lapStats = array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0);
+    // CURRENT LAP stats: Count only votes from current lap
+    $currentLapStats = array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0);
     
     foreach ($votes as $vote) {
         $emoji = isset($vote['emoji']) ? $vote['emoji'] : '';
-        $voteLap = isset($vote['lap']) ? $vote['lap'] : 0;
+        $voteLap = isset($vote['lap']) ? $vote['lap'] : 1;  // Default to lap 1 for old votes
         
-        if (isset($stats[$emoji])) {
-            $stats[$emoji]++;
-            $stats['total']++;
-            
-            if ($voteLap == $currentLap && isset($lapStats[$emoji])) {
-                $lapStats[$emoji]++;
-                $lapStats['total']++;
-            }
+        // Count for ALL-TIME (always)
+        if (isset($allTime[$emoji])) {
+            $allTime[$emoji]++;
+            $allTime['total']++;
+        }
+        
+        // Count for CURRENT LAP only if vote matches current lap
+        if ($voteLap == $currentLap && isset($currentLapStats[$emoji])) {
+            $currentLapStats[$emoji]++;
+            $currentLapStats['total']++;
         }
     }
     
     echo json_encode(array(
         'success' => true,
-        'allTime' => $stats,
-        'currentLap' => $lapStats,
+        'allTime' => $allTime,           // ← ALL votes ever cast
+        'currentLap' => $currentLapStats, // ← Only votes from current lap
         'lapNumber' => $currentLap
     ));
     exit;
@@ -246,16 +250,18 @@ if ($action === 'reset_emoji' && isset($_SESSION['is_admin'])) {
     $type = isset($_POST['type']) ? $_POST['type'] : 'all';
     
     if ($type === 'lap') {
+        // Start NEW lap (increment counter, keep all historical votes)
         $laps = readJsonLocked($dataDir . 'emoji_laps.json');
-        $currentLap = isset($laps['current']) ? $laps['current'] : 0;
-        $laps['current'] = $currentLap + 1;
+        $currentLap = isset($laps['current']) ? $laps['current'] : 1;
+        $laps['current'] = $currentLap + 1;  // ← Increment lap
         if (!isset($laps['history'])) $laps['history'] = array();
-        $laps['history'][] = array('lap' => $currentLap + 1, 'time' => time());
+        $laps['history'][] = array('lap' => $laps['current'], 'time' => time());
         writeJsonLocked($dataDir . 'emoji_laps.json', $laps);
-        echo json_encode(array('success' => true, 'lap' => $currentLap + 1));
+        echo json_encode(array('success' => true, 'lap' => $laps['current']));
     } else if ($type === 'all') {
+        // Reset EVERYTHING (delete all votes, reset lap to 1)
         writeJsonLocked($dataDir . 'emoji_votes.json', array());
-        $laps = array('current' => 0, 'history' => array());
+        $laps = array('current' => 1, 'history' => array());  // ← Reset to lap 1
         writeJsonLocked($dataDir . 'emoji_laps.json', $laps);
         echo json_encode(array('success' => true));
     }
@@ -272,7 +278,7 @@ if ($action === 'get_emoji_log' && isset($_SESSION['is_admin'])) {
             'username' => isset($vote['username']) ? $vote['username'] : 'Anonymous',
             'emoji' => isset($vote['emoji']) ? $vote['emoji'] : 'unknown',
             'time' => isset($vote['time']) ? $vote['time'] : 0,
-            'lap' => isset($vote['lap']) ? $vote['lap'] : 0
+            'lap' => isset($vote['lap']) ? $vote['lap'] : 1
         );
     }
     
