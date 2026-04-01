@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - AUTO-OPEN PDF ON UPLOAD + VIEW OPTION -->
+<!-- File 11 of 8: modules.php - IMPROVED PDF LOADING -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -274,7 +274,7 @@
             to { opacity: 1; transform: scale(1); }
         }
         
-        /* PDF Viewer - TRUE INFINITE SCROLL */
+        /* PDF Viewer */
         .pdf-viewer-container {
             height: 70vh;
             background: #525659;
@@ -435,7 +435,6 @@
             .emoji-stats { gap: 10px; }
             .emoji-stat { min-width: 60px; padding: 8px 12px; }
             .admin-grid { grid-template-columns: 1fr; }
-            .stats-grid { grid-template-columns: repeat(5, 1fr); }
         }
     </style>
 </head>
@@ -500,7 +499,6 @@
         </h3>
         
         <div class="admin-grid">
-            <!-- Lap Management -->
             <div class="admin-card">
                 <h4>🏁 Lap Management</h4>
                 <div class="lap-info">
@@ -510,7 +508,6 @@
                 <button class="btn-primary" onclick="newLap()">🏁 Start New Lap</button>
             </div>
             
-            <!-- PDF Management -->
             <div class="admin-card">
                 <h4>📄 PDF Management</h4>
                 <div class="pdf-info" id="admin-pdf-info">
@@ -522,7 +519,6 @@
                 <button class="btn-danger" onclick="deletePdf()">🗑️ Delete PDF</button>
             </div>
             
-            <!-- Reset Controls -->
             <div class="admin-card">
                 <h4>🔄 Reset Controls</h4>
                 <button class="btn-danger" onclick="resetWords()">🗑️ Reset Word Cloud</button>
@@ -530,7 +526,6 @@
                 <button class="btn-danger" onclick="resetEmoji('all')">⚠️ Reset All Emoji</button>
             </div>
             
-            <!-- Emoji Stats -->
             <div class="admin-card" id="emoji-stats-card">
                 <h4>📊 Emoji Stats (All-Time)</h4>
                 <div class="stats-grid" id="admin-emoji-stats">
@@ -717,13 +712,10 @@
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
     
     document.addEventListener('DOMContentLoaded', () => {
-        initPDFJS().then(() => {
-            console.log('PDF.js ready');
-        });
+        initPDFJS().then(() => console.log('PDF.js ready'));
         
         if (username) {
             document.getElementById('user-badge').textContent = '👤 ' + username;
-            document.getElementById('login-modal').classList.add('hidden');
             logUserLogin(username);
         } else {
             document.getElementById('login-modal').classList.remove('hidden');
@@ -734,7 +726,6 @@
         
         pollInterval = setInterval(loadModulesConfig, 5000);
         setInterval(updateEmojiStats, 3000);
-        updateUserCount();
         setInterval(updateUserCount, 5000);
         setInterval(checkEmojiAnimation, 1000);
         
@@ -776,23 +767,13 @@
     }
     
     function renderModules() {
-        const wcModule = document.getElementById('module-wordcloud');
-        if (wcModule) {
-            wcModule.classList.toggle('hidden', !modulesConfig.wordcloud);
-            if (modulesConfig.wordcloud) renderCloud();
-        }
+        document.getElementById('module-wordcloud').classList.toggle('hidden', !modulesConfig.wordcloud);
+        document.getElementById('module-pdf').classList.toggle('hidden', !modulesConfig.pdf_viewer);
+        document.getElementById('module-emoji').classList.toggle('hidden', !modulesConfig.emoji_meter);
         
-        const pdfModule = document.getElementById('module-pdf');
-        if (pdfModule) {
-            pdfModule.classList.toggle('hidden', !modulesConfig.pdf_viewer);
-            if (modulesConfig.pdf_viewer) loadPdf();
-        }
-        
-        const emojiModule = document.getElementById('module-emoji');
-        if (emojiModule) {
-            emojiModule.classList.toggle('hidden', !modulesConfig.emoji_meter);
-            if (modulesConfig.emoji_meter) updateEmojiStats();
-        }
+        if (modulesConfig.wordcloud) renderCloud();
+        if (modulesConfig.pdf_viewer) loadPdf();
+        if (modulesConfig.emoji_meter) updateEmojiStats();
     }
     
     function updateAdminButtons() {
@@ -800,18 +781,9 @@
         const btnPdf = document.getElementById('btn-module-pdf');
         const btnEmoji = document.getElementById('btn-module-emoji');
         
-        if (btnWc) {
-            btnWc.classList.toggle('active', modulesConfig.wordcloud);
-            btnWc.textContent = (modulesConfig.wordcloud ? '✅ ' : '☁️ ') + 'Word Cloud';
-        }
-        if (btnPdf) {
-            btnPdf.classList.toggle('active', modulesConfig.pdf_viewer);
-            btnPdf.textContent = (modulesConfig.pdf_viewer ? '✅ ' : '📄 ') + 'PDF';
-        }
-        if (btnEmoji) {
-            btnEmoji.classList.toggle('active', modulesConfig.emoji_meter);
-            btnEmoji.textContent = (modulesConfig.emoji_meter ? '✅ ' : '📱 ') + 'Emoji';
-        }
+        if (btnWc) btnWc.classList.toggle('active', modulesConfig.wordcloud);
+        if (btnPdf) btnPdf.classList.toggle('active', modulesConfig.pdf_viewer);
+        if (btnEmoji) btnEmoji.classList.toggle('active', modulesConfig.emoji_meter);
     }
     
     function toggleAdminPanel() {
@@ -823,21 +795,17 @@
         if (statsCard && btn) {
             const isHidden = statsCard.classList.contains('hidden');
             
-            document.querySelectorAll('#admin-panel .admin-card').forEach(card => {
-                card.classList.add('hidden');
-            });
+            document.querySelectorAll('#admin-panel .admin-card').forEach(card => card.classList.add('hidden'));
             
             if (isHidden) {
                 statsCard.classList.remove('hidden');
-                document.getElementById('admin-panel').classList.remove('hidden');
-                document.getElementById('admin-panel').classList.add('visible');
+                document.getElementById('admin-panel').classList.remove('hidden').classList.add('visible');
                 btn.classList.add('active');
                 btn.textContent = '📊 Stats ON';
                 updateAdminPanel();
             } else {
                 statsCard.classList.add('hidden');
-                document.getElementById('admin-panel').classList.add('hidden');
-                document.getElementById('admin-panel').classList.remove('visible');
+                document.getElementById('admin-panel').classList.add('hidden').classList.remove('visible');
                 btn.classList.remove('active');
                 btn.textContent = '📊 Stats';
             }
@@ -847,37 +815,32 @@
     function updateAdminPanel() {
         if (!isAdmin) return;
         
-        fetch(API + '?action=get_emoji_stats')
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById('admin-lap-number').textContent = data.lapNumber || 1;
-                    document.getElementById('admin-total-votes').textContent = data.allTime.total || 0;
-                    document.getElementById('admin-stat-done').textContent = data.allTime.done || 0;
-                    document.getElementById('admin-stat-unsure').textContent = data.allTime.unsure || 0;
-                    document.getElementById('admin-stat-pain').textContent = data.allTime.pain || 0;
-                    document.getElementById('admin-stat-happy').textContent = data.allTime.happy || 0;
-                    document.getElementById('admin-stat-help').textContent = data.allTime.help || 0;
-                }
-            });
+        fetch(API + '?action=get_emoji_stats').then(r => r.json()).then(data => {
+            if (data.success) {
+                document.getElementById('admin-lap-number').textContent = data.lapNumber || 1;
+                document.getElementById('admin-total-votes').textContent = data.allTime.total || 0;
+                document.getElementById('admin-stat-done').textContent = data.allTime.done || 0;
+                document.getElementById('admin-stat-unsure').textContent = data.allTime.unsure || 0;
+                document.getElementById('admin-stat-pain').textContent = data.allTime.pain || 0;
+                document.getElementById('admin-stat-happy').textContent = data.allTime.happy || 0;
+                document.getElementById('admin-stat-help').textContent = data.allTime.help || 0;
+            }
+        });
         
-        fetch(API + '?action=get_pdf_info')
-            .then(r => r.json())
-            .then(data => {
-                const pdfName = document.getElementById('admin-pdf-name');
-                const pdfTime = document.getElementById('admin-pdf-time');
-                
-                if (data.success && data.hasPdf) {
-                    pdfName.textContent = data.original || 'Lesson.pdf';
-                    if (data.uploadTime) {
-                        const date = new Date(data.uploadTime * 1000);
-                        pdfTime.textContent = 'Uploaded: ' + date.toLocaleString();
-                    }
-                } else {
-                    pdfName.textContent = 'No PDF uploaded';
-                    pdfTime.textContent = '';
+        fetch(API + '?action=get_pdf_info').then(r => r.json()).then(data => {
+            const nameEl = document.getElementById('admin-pdf-name');
+            const timeEl = document.getElementById('admin-pdf-time');
+            if (data.success && data.hasPdf) {
+                nameEl.textContent = data.original || 'Lesson.pdf';
+                if (data.uploadTime) {
+                    const date = new Date(data.uploadTime * 1000);
+                    timeEl.textContent = 'Uploaded: ' + date.toLocaleString();
                 }
-            });
+            } else {
+                nameEl.textContent = 'No PDF uploaded';
+                timeEl.textContent = '';
+            }
+        });
     }
     
     function toggleModule(module) {
@@ -887,10 +850,8 @@
         fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=' + modulesConfig.pdf_viewer + '&emoji_meter=' + modulesConfig.emoji_meter
-        })
-        .then(r => r.json())
-        .then(data => {
+            body: `action=update_modules_config&wordcloud=${modulesConfig.wordcloud}&pdf_viewer=${modulesConfig.pdf_viewer}&emoji_meter=${modulesConfig.emoji_meter}`
+        }).then(r => r.json()).then(data => {
             if (data.success) {
                 renderModules();
                 updateAdminButtons();
@@ -903,14 +864,11 @@
         deleteMode = !deleteMode;
         const btn = document.getElementById('btn-delete-mode');
         const container = document.getElementById('cloud-container');
-        
         if (deleteMode) {
-            btn.classList.add('active');
-            btn.textContent = '✅ Delete ON';
+            btn.classList.add('active'); btn.textContent = '✅ Delete ON';
             container.classList.add('admin-mode');
         } else {
-            btn.classList.remove('active');
-            btn.textContent = '🗑️ Delete';
+            btn.classList.remove('active'); btn.textContent = '🗑️ Delete';
             container.classList.remove('admin-mode');
         }
     }
@@ -920,14 +878,11 @@
         showUsernamesMode = !showUsernamesMode;
         const btn = document.getElementById('btn-usernames');
         const container = document.getElementById('cloud-container');
-        
         if (showUsernamesMode) {
-            btn.classList.add('active');
-            btn.textContent = '👥 Users ON';
+            btn.classList.add('active'); btn.textContent = '👥 Users ON';
             container.classList.add('show-usernames');
         } else {
-            btn.classList.remove('active');
-            btn.textContent = '👥 Users';
+            btn.classList.remove('active'); btn.textContent = '👥 Users';
             container.classList.remove('show-usernames');
         }
         renderCloud();
@@ -935,20 +890,16 @@
     
     function toggleEmojiLog() {
         if (!isAdmin) return;
-        
         showEmojiLogMode = !showEmojiLogMode;
         const section = document.getElementById('emoji-log-section');
         const btn = document.getElementById('btn-emoji-log');
-        
         if (showEmojiLogMode) {
             section.classList.remove('hidden');
-            btn.classList.add('active');
-            btn.textContent = '📋 Log ON';
+            btn.classList.add('active'); btn.textContent = '📋 Log ON';
             refreshEmojiLog();
         } else {
             section.classList.add('hidden');
-            btn.classList.remove('active');
-            btn.textContent = '📋 Emoji Log';
+            btn.classList.remove('active'); btn.textContent = '📋 Emoji Log';
         }
     }
     
@@ -959,43 +910,28 @@
                 method: 'POST',
                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                 body: 'action=reset_emoji&type=lap'
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    alert('✅ New lap #' + data.lap);
-                    updateAdminPanel();
-                }
+            }).then(r => r.json()).then(data => {
+                if (data.success) alert('✅ New lap #' + data.lap);
+                updateAdminPanel();
             });
         }
     }
     
-    // View PDF (manual open)
     function viewPdf() {
         if (!isAdmin) return;
-        
-        // Enable PDF module if it's off
         if (!modulesConfig.pdf_viewer) {
             modulesConfig.pdf_viewer = true;
             fetch(API, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter
+                body: `action=update_modules_config&wordcloud=${modulesConfig.wordcloud}&pdf_viewer=true&emoji_meter=${modulesConfig.emoji_meter}`
             });
-            const btnPdf = document.getElementById('btn-module-pdf');
-            if (btnPdf) {
-                btnPdf.classList.add('active');
-                btnPdf.textContent = '✅ PDF';
-            }
         }
-        
-        const pdfModule = document.getElementById('module-pdf');
-        pdfModule.classList.remove('hidden');
+        document.getElementById('module-pdf').classList.remove('hidden');
         loadPdf();
-        pdfModule.scrollIntoView({ behavior: 'smooth' });
+        document.getElementById('module-pdf').scrollIntoView({ behavior: 'smooth' });
     }
     
-    // Upload PDF + auto open
     function uploadPdf() {
         if (!isAdmin) return;
         const input = document.createElement('input');
@@ -1003,162 +939,159 @@
         input.accept = '.pdf';
         input.onchange = () => {
             const file = input.files[0];
-            if (file && file.type === 'application/pdf') {
-                const formData = new FormData();
-                formData.append('pdf', file);
-                fetch(API + '?action=upload_pdf', { method: 'POST', body: formData })
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert('✅ PDF uploaded!');
-                            
-                            // Auto-enable PDF module if off
-                            if (!modulesConfig.pdf_viewer) {
-                                modulesConfig.pdf_viewer = true;
-                                fetch(API, {
-                                    method: 'POST',
-                                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                                    body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter
-                                });
-                                const btnPdf = document.getElementById('btn-module-pdf');
-                                if (btnPdf) {
-                                    btnPdf.classList.add('active');
-                                    btnPdf.textContent = '✅ PDF';
-                                }
-                            }
-                            
-                            // Clear saved position
-                            if (currentPdfFilename) {
-                                localStorage.removeItem('pdfScroll_' + currentPdfFilename);
-                                localStorage.removeItem('pdfScale_' + currentPdfFilename);
-                            }
-                            pdfIsLoaded = false;
-                            currentPdfFilename = '';
-                            
-                            // Auto open PDF viewer
-                            viewPdf();
-                            
-                            updateAdminPanel();
-                        }
-                    })
-                    .catch(err => console.error(err));
-            }
-        };
-        input.click();
-    }
-    
-    function deletePdf() {
-        if (!isAdmin) return;
-        if (confirm('🗑️ Delete PDF?')) {
-            fetch(API + '?action=delete_pdf', { method: 'POST' })
+            if (!file || file.type !== 'application/pdf') return;
+            
+            const formData = new FormData();
+            formData.append('pdf', file);
+            
+            fetch(API + '?action=upload_pdf', { method: 'POST', body: formData })
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
-                        alert('✅ PDF deleted');
+                        alert('✅ PDF uploaded successfully!');
+                        if (!modulesConfig.pdf_viewer) {
+                            modulesConfig.pdf_viewer = true;
+                            fetch(API, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                                body: `action=update_modules_config&wordcloud=${modulesConfig.wordcloud}&pdf_viewer=true&emoji_meter=${modulesConfig.emoji_meter}`
+                            });
+                        }
                         if (currentPdfFilename) {
                             localStorage.removeItem('pdfScroll_' + currentPdfFilename);
                             localStorage.removeItem('pdfScale_' + currentPdfFilename);
                         }
                         pdfIsLoaded = false;
                         currentPdfFilename = '';
-                        pdfDoc = null;
-                        const viewer = document.getElementById('pdf-viewer');
-                        if (viewer) {
-                            viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
-                        }
-                        const indicator = document.getElementById('page-indicator');
-                        if (indicator) indicator.classList.add('hidden');
+                        viewPdf();
                         updateAdminPanel();
+                    } else {
+                        alert('❌ Upload failed: ' + (data.error || 'Unknown error'));
                     }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('❌ Upload error. Check console (F12)');
                 });
-        }
+        };
+        input.click();
     }
     
-    // PDF.js TRUE INFINITE SCROLL
+    function deletePdf() {
+        if (!isAdmin || !confirm('🗑️ Delete current PDF?')) return;
+        fetch(API + '?action=delete_pdf', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ PDF deleted');
+                    if (currentPdfFilename) {
+                        localStorage.removeItem('pdfScroll_' + currentPdfFilename);
+                        localStorage.removeItem('pdfScale_' + currentPdfFilename);
+                    }
+                    pdfIsLoaded = false;
+                    currentPdfFilename = '';
+                    pdfDoc = null;
+                    const viewer = document.getElementById('pdf-viewer');
+                    viewer.innerHTML = `<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>`;
+                    document.getElementById('page-indicator').classList.add('hidden');
+                    updateAdminPanel();
+                }
+            });
+    }
+    
+    // ==================== IMPROVED PDF LOADING ====================
     function loadPdf() {
         fetch(API + '?action=get_pdf_info')
             .then(r => r.json())
             .then(data => {
-                if (data.success && data.hasPdf) {
-                    if (pdfIsLoaded && data.filename === currentPdfFilename) return;
+                if (!data.success || !data.hasPdf) {
+                    showNoPdfMessage();
+                    return;
+                }
 
-                    currentPdfFilename = data.filename;
-                    const viewer = document.getElementById('pdf-viewer');
+                if (pdfIsLoaded && data.filename === currentPdfFilename) return;
 
-                    const savedScroll = localStorage.getItem('pdfScroll_' + currentPdfFilename);
-                    const savedScale  = localStorage.getItem('pdfScale_'  + currentPdfFilename);
+                currentPdfFilename = data.filename;
+                const viewer = document.getElementById('pdf-viewer');
 
-                    scale = savedScale ? parseFloat(savedScale) : 1.0;
-                    renderedPages = {};
+                const savedScroll = localStorage.getItem('pdfScroll_' + currentPdfFilename);
+                const savedScale  = localStorage.getItem('pdfScale_'  + currentPdfFilename);
 
-                    console.log('Loading PDF:', currentPdfFilename, 'Scale:', scale);
+                scale = savedScale ? parseFloat(savedScale) : 1.0;
+                renderedPages = {};
 
-                    const loadingTask = pdfjsLib.getDocument('data/' + currentPdfFilename);
-                    loadingTask.promise.then(function(pdf) {
-                        pdfDoc = pdf;
-                        totalPages = pdf.numPages;
+                console.log(`Loading PDF: ${currentPdfFilename}`);
 
-                        viewer.innerHTML = `
-                            <div class="pdf-controls">
-                                <button onclick="zoomOut()">🔍−</button>
-                                <span id="zoom-label">Zoom: ${(scale * 100).toFixed(0)}%</span>
-                                <button onclick="zoomIn()">🔍+</button>
-                            </div>
-                            <div class="pdf-pages-container" id="pdf-pages"></div>
-                        `;
+                const loadingTask = pdfjsLib.getDocument({
+                    url: 'data/' + currentPdfFilename,
+                    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                    cMapPacked: true,
+                    enableXfa: false
+                });
 
-                        const indicator = document.getElementById('page-indicator');
-                        indicator.classList.remove('hidden');
-                        document.getElementById('total-pages').textContent = totalPages;
+                loadingTask.promise.then(function(pdf) {
+                    pdfDoc = pdf;
+                    totalPages = pdf.numPages;
 
-                        renderAllPages().then(() => {
-                            pdfIsLoaded = true;
-                            if (savedScroll) {
-                                viewer.scrollTop = parseInt(savedScroll);
-                            }
-                        });
+                    viewer.innerHTML = `
+                        <div class="pdf-controls">
+                            <button onclick="zoomOut()">🔍−</button>
+                            <span id="zoom-label">Zoom: ${(scale * 100).toFixed(0)}%</span>
+                            <button onclick="zoomIn()">🔍+</button>
+                        </div>
+                        <div class="pdf-pages-container" id="pdf-pages"></div>
+                    `;
 
-                        viewer.onscroll = handleScroll;
+                    document.getElementById('page-indicator').classList.remove('hidden');
+                    document.getElementById('total-pages').textContent = totalPages;
 
-                    }, function(reason) {
-                        console.error('PDF loading error:', reason);
-                        viewer.innerHTML = '<div class="no-pdf"><p>Error loading PDF</p></div>';
-                        pdfIsLoaded = false;
+                    renderAllPages().then(() => {
+                        pdfIsLoaded = true;
+                        if (savedScroll) viewer.scrollTop = parseInt(savedScroll);
+                        console.log(`PDF loaded successfully - ${totalPages} pages`);
                     });
 
-                } else {
-                    if (pdfIsLoaded) {
-                        pdfIsLoaded = false;
-                        currentPdfFilename = '';
-                        pdfDoc = null;
-                        const viewer = document.getElementById('pdf-viewer');
-                        if (viewer) {
-                            viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
-                        }
-                        const indicator = document.getElementById('page-indicator');
-                        if (indicator) indicator.classList.add('hidden');
-                    }
-                }
+                    viewer.onscroll = handleScroll;
+
+                }).catch(function(reason) {
+                    console.error('PDF.js failed to load document:', reason);
+                    viewer.innerHTML = `
+                        <div class="no-pdf">
+                            <div>
+                                <p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p>
+                                <p><strong>Failed to load PDF</strong></p>
+                                <p style="font-size:14px;color:#e74c3c;">${reason.message || reason}</p>
+                                <p style="font-size:13px;margin-top:10px;">Try a smaller PDF or check browser console (F12) for details.</p>
+                            </div>
+                        </div>
+                    `;
+                    pdfIsLoaded = false;
+                });
+            })
+            .catch(err => {
+                console.error('Failed to get PDF info:', err);
+                showNoPdfMessage();
             });
+    }
+    
+    function showNoPdfMessage() {
+        const viewer = document.getElementById('pdf-viewer');
+        viewer.innerHTML = `<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>`;
+        document.getElementById('page-indicator').classList.add('hidden');
     }
     
     async function renderAllPages() {
         const container = document.getElementById('pdf-pages');
         if (!container || !pdfDoc) return;
-        
         container.innerHTML = '';
-        
         for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
             await renderPage(pageNum, container);
         }
-        
-        console.log('All pages rendered');
     }
     
     function renderPage(pageNum, container) {
-        return pdfDoc.getPage(pageNum).then(function(page) {
+        return pdfDoc.getPage(pageNum).then(page => {
             const viewport = page.getViewport({scale: scale});
-            
             const canvas = document.createElement('canvas');
             canvas.className = 'pdf-page-canvas';
             canvas.height = viewport.height;
@@ -1166,12 +1099,7 @@
             canvas.id = 'page-' + pageNum;
             
             const ctx = canvas.getContext('2d');
-            const renderContext = {
-                canvasContext: ctx,
-                viewport: viewport
-            };
-            
-            return page.render(renderContext).promise.then(function() {
+            return page.render({canvasContext: ctx, viewport: viewport}).promise.then(() => {
                 renderedPages[pageNum] = true;
                 container.appendChild(canvas);
             });
@@ -1181,7 +1109,6 @@
     function handleScroll() {
         if (isScrolling) return;
         isScrolling = true;
-        
         clearTimeout(scrollTimeout);
         scrollTimeout = setTimeout(() => {
             updatePageIndicator();
@@ -1192,32 +1119,26 @@
     
     function updatePageIndicator() {
         const viewer = document.getElementById('pdf-viewer');
-        if (!viewer || !pdfDoc) return;
-        
+        if (!viewer) return;
         const pages = document.querySelectorAll('.pdf-page-canvas');
-        let currentPage = 1;
-        
-        pages.forEach((canvas, index) => {
+        let current = 1;
+        pages.forEach((canvas, i) => {
             const rect = canvas.getBoundingClientRect();
-            const viewerRect = viewer.getBoundingClientRect();
-            
-            if (rect.top <= viewerRect.top + 100 && rect.bottom >= viewerRect.top + 100) {
-                currentPage = index + 1;
+            const vRect = viewer.getBoundingClientRect();
+            if (rect.top <= vRect.top + 100 && rect.bottom >= vRect.top + 100) {
+                current = i + 1;
             }
         });
-        
-        document.getElementById('current-page').textContent = currentPage;
+        document.getElementById('current-page').textContent = current;
     }
     
     function savePdfPosition() {
         const viewer = document.getElementById('pdf-viewer');
         if (viewer && currentPdfFilename) {
             try {
-                localStorage.setItem('pdfScroll_' + currentPdfFilename, viewer.scrollTop.toString());
-                localStorage.setItem('pdfScale_'  + currentPdfFilename, scale.toString());
-            } catch(e) {
-                console.error('Error saving PDF position:', e);
-            }
+                localStorage.setItem('pdfScroll_' + currentPdfFilename, viewer.scrollTop);
+                localStorage.setItem('pdfScale_' + currentPdfFilename, scale);
+            } catch(e) {}
         }
     }
     
@@ -1234,19 +1155,15 @@
     
     function reloadPdfWithScale() {
         const viewer = document.getElementById('pdf-viewer');
-        const scrollRatio = viewer ? viewer.scrollTop / Math.max(viewer.scrollHeight, 1) : 0;
-
-        const zoomLabel = document.getElementById('zoom-label');
-        if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
-
+        const scrollRatio = viewer ? viewer.scrollTop / Math.max(1, viewer.scrollHeight) : 0;
+        document.getElementById('zoom-label').textContent = `Zoom: ${(scale * 100).toFixed(0)}%`;
+        
         renderedPages = {};
         const container = document.getElementById('pdf-pages');
         if (container) container.innerHTML = '';
-
+        
         renderAllPages().then(() => {
-            if (viewer) {
-                viewer.scrollTop = Math.round(scrollRatio * viewer.scrollHeight);
-            }
+            if (viewer) viewer.scrollTop = Math.round(scrollRatio * viewer.scrollHeight);
             savePdfPosition();
         });
     }
@@ -1396,13 +1313,13 @@
                 
                 tbody.innerHTML = data.log.map((entry, index) => {
                     const date = new Date(entry.time * 1000);
-                    return '<tr>' +
-                        '<td class="col-emoji">' + (EMOJI_MAP[entry.emoji] || entry.emoji) + '</td>' +
-                        '<td class="col-user">' + escapeHtml(entry.username || 'Anonymous') + '</td>' +
-                        '<td class="col-time">' + date.toLocaleTimeString() + '</td>' +
-                        '<td><span class="col-lap">' + (entry.lap || 1) + '</span></td>' +
-                        '<td class="col-action"><button class="delete-row-btn" onclick="deleteEmojiLog(\'single\', ' + index + ')">🗑️</button></td>' +
-                        '</tr>';
+                    return `<tr>
+                        <td class="col-emoji">${EMOJI_MAP[entry.emoji] || entry.emoji}</td>
+                        <td class="col-user">${escapeHtml(entry.username || 'Anonymous')}</td>
+                        <td class="col-time">${date.toLocaleTimeString()}</td>
+                        <td><span class="col-lap">${entry.lap || 1}</span></td>
+                        <td class="col-action"><button class="delete-row-btn" onclick="deleteEmojiLog('single', ${index})">🗑️</button></td>
+                    </tr>`;
                 }).join('');
             });
     }
@@ -1452,9 +1369,7 @@
             .then(r => r.json())
             .then(data => {
                 const display = document.getElementById('user-count-display');
-                if (display && data.success) {
-                    display.textContent = '👥 ' + data.label;
-                }
+                if (display && data.success) display.textContent = '👥 ' + data.label;
             });
     }
     
@@ -1469,7 +1384,6 @@
     function showEmojiAnimation(emoji) {
         const overlay = document.getElementById('emoji-overlay');
         const symbol = EMOJI_MAP[emoji] || emoji;
-        
         for (let i = 0; i < 5; i++) {
             setTimeout(() => {
                 const el = document.createElement('div');
@@ -1480,7 +1394,6 @@
                 setTimeout(() => el.remove(), 3000);
             }, i * 200);
         }
-        
         overlay.classList.add('active');
         setTimeout(() => overlay.classList.remove('active'), 3500);
     }
