@@ -553,7 +553,7 @@
     let pollInterval = null;
     let emojiPollInterval = null;
     let lastVoteTime = 0;
-    const QR_URL = 'https://testingdomain.ru/edulite/wordcloud.php';
+    const QR_URL = 'https://testingdomainru.ru/edulite/wordcloud.php';
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
     
