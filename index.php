@@ -1,4 +1,4 @@
-<!-- File 4 of 8: index.php - COMPLETE SIMPLIFIED -->
+<!-- File 4 of 8: index.php - WITH MODULES BUTTON -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -30,16 +30,22 @@
         <p style="color: #666; margin: 10px 0;">Hi, <span id="display-username" style="font-weight: bold; color: var(--primary);"></span>!</p>
         
         <div class="tool-grid">
-            <!-- Word Cloud Tool - Redirects to wordcloud.php -->
+            <!-- Modules App (Unified) -->
+            <div class="tool-card" onclick="window.location.href='modules.php'">
+                <h3>🎯 Modules</h3>
+                <p>Unified classroom tools</p>
+            </div>
+            
+            <!-- Word Cloud (Legacy) -->
             <div class="tool-card" onclick="window.location.href='wordcloud.php'">
                 <h3>☁️ Word Cloud</h3>
                 <p>Share words with the class</p>
             </div>
             
-            <!-- Satisfaction Tool -->
-            <div class="tool-card" onclick="App.loadTool('satisfaction')">
-                <h3>😊 Satisfaction</h3>
-                <p>Rate today's session</p>
+            <!-- Lesson Mode (PDF + Emoji) -->
+            <div class="tool-card" onclick="window.location.href='lesson.php'">
+                <h3>📖 Lesson Mode</h3>
+                <p>View PDF + give feedback</p>
             </div>
             
             <!-- Admin Tool -->
@@ -48,30 +54,9 @@
                 <p>Teacher access only</p>
             </div>
         </div>
-        
-        <br>
-        <button class="secondary" onclick="App.logout()">Change Name</button>
     </section>
 
-    <!-- 3. Satisfaction Tool -->
-    <section id="screen-satisfaction" class="screen hidden">
-        <h2>😊 How was it?</h2>
-        <p style="color: #666;">Tap to rate the session</p>
-        <div class="emoji-container">
-            <button class="emoji-btn" onclick="Satisfaction.submit(1)" aria-label="Very Bad">😡</button>
-            <button class="emoji-btn" onclick="Satisfaction.submit(2)" aria-label="Bad">😕</button>
-            <button class="emoji-btn" onclick="Satisfaction.submit(3)" aria-label="Okay">😐</button>
-            <button class="emoji-btn" onclick="Satisfaction.submit(4)" aria-label="Good">🙂</button>
-            <button class="emoji-btn" onclick="Satisfaction.submit(5)" aria-label="Excellent">😍</button>
-        </div>
-        <div class="stats-box">
-            <span style="font-size: 16px; color: #666;">Class Average:</span><br>
-            <span id="avg-score">-</span><span style="font-size: 20px;">/5</span>
-        </div>
-        <button class="secondary" onclick="App.showScreen('screen-list')">← Back</button>
-    </section>
-
-    <!-- 4. Admin Login -->
+    <!-- 3. Admin Login -->
     <section id="screen-admin-login" class="screen hidden">
         <h2>🔒 Admin Access</h2>
         <p style="color: #666;">Teacher password required</p>
@@ -82,20 +67,28 @@
         <button class="secondary" onclick="App.showScreen('screen-list')">← Back</button>
     </section>
 
-    <!-- 5. Admin Dashboard -->
+    <!-- 4. Admin Dashboard -->
     <section id="screen-admin-dash" class="screen hidden">
         <h2>⚙️ Dashboard</h2>
-        <p style="color: #666;">Reset tools for new class</p>
-        <button style="background: var(--danger);" onclick="Admin.reset('words')">🗑️ Reset Word Cloud</button>
+        <p style="color: #666;">Manage tools and lessons</p>
+        
+        <h3 style="margin-top: 20px; color: #667eea;">🎯 Modules</h3>
+        <button onclick="Admin.toggleModules()">🔧 Configure Modules</button>
+        
+        <h3 style="margin-top: 20px; color: #667eea;">📖 Lesson Mode</h3>
+        <button onclick="Admin.uploadPdf()">📤 Upload PDF</button>
         <br>
-        <button style="background: var(--danger);" onclick="Admin.reset('votes')">🗑️ Reset Satisfaction</button>
+        <button class="secondary" onclick="Admin.deletePdf()">🗑️ Delete PDF</button>
+        
+        <h3 style="margin-top: 20px; color: #667eea;">🗑️ Reset Tools</h3>
+        <button style="background: var(--danger);" onclick="Admin.reset('words')">Reset Word Cloud</button>
         <br>
-        <button class="secondary" onclick="App.showScreen('screen-list')">← Logout</button>
+        <button class="secondary" onclick="App.showScreen('screen-list')">← Back</button>
     </section>
 </div>
 
+<!-- CRITICAL: Load app.js FIRST, then admin.js -->
 <script src="js/app.js"></script>
-<script src="js/satisfaction.js"></script>
 <script src="js/admin.js"></script>
 
 </body>

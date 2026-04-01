@@ -1,4 +1,4 @@
-<!-- File 9 of 8: wordcloud.php - COMPLETE FINAL VERSION -->
+<!-- File 9 of 8: wordcloud.php - COMPLETE WITH LOGIN-BASED USER COUNT -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,6 +22,7 @@
         .game-title {
             color: #667eea; font-size: 28px; margin: 0 0 15px 0;
             display: flex; align-items: center; justify-content: center; gap: 10px;
+            flex-wrap: wrap;
         }
         .user-info {
             display: flex; justify-content: center; align-items: center;
@@ -237,6 +238,21 @@
             font-weight: 600; margin: 5px;
         }
         
+        /* USER COUNT INDICATOR */
+        .user-count-indicator {
+            background: #3498db;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            animation: pulse 2s infinite;
+        }
+        
         /* EMOJI ANIMATION OVERLAY */
         .emoji-animation-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -262,6 +278,13 @@
         .emoji-log-section h3 {
             color: #667eea; margin: 0 0 20px 0; font-size: 20px;
             display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .emoji-log-section h3 button {
+            background: #667eea; color: white; border: none;
+            padding: 8px 15px; border-radius: 6px; cursor: pointer;
+            font-size: 12px;
         }
         .emoji-log-table {
             width: 100%; border-collapse: collapse; font-size: 14px;
@@ -283,6 +306,12 @@
             background: #667eea; color: white; padding: 3px 10px;
             border-radius: 12px; font-size: 11px; font-weight: 600;
             display: inline-block;
+        }
+        .emoji-log-table .col-action { width: 60px; text-align: center; }
+        .emoji-log-table .delete-row-btn {
+            background: #e74c3c; color: white; border: none;
+            padding: 4px 10px; border-radius: 4px; cursor: pointer;
+            font-size: 11px;
         }
         .no-log {
             text-align: center; color: #999; padding: 30px; font-style: italic;
@@ -352,6 +381,13 @@
             .emoji-btn .emoji-label { font-size: 11px; }
             .emoji-stats { gap: 10px; }
             .emoji-stat { min-width: 60px; padding: 8px 12px; }
+            .emoji-log-section h3 { flex-direction: column; align-items: stretch; }
+            .emoji-log-section h3 div { display: flex; gap: 8px; }
+            .user-count-indicator {
+                font-size: 11px;
+                padding: 4px 10px;
+                margin-left: 5px;
+            }
         }
         
         @media (max-height: 500px) and (orientation: landscape) {
@@ -394,7 +430,12 @@
     <div class="game-header">
         <h1 class="game-title">
             <span>☁️</span><span>Word Cloud</span>
-            <span class="live-indicator"><span class="live-dot"></span>LIVE</span>
+            <span class="live-indicator">
+                <span class="live-dot"></span>LIVE
+            </span>
+            <span class="user-count-indicator" id="user-count-display">
+                👥 0 users
+            </span>
         </h1>
         <div class="user-info">
             <span class="user-badge" id="user-badge">👤 Guest</span>
@@ -505,7 +546,10 @@
     <div class="emoji-log-section hidden" id="emoji-log-section">
         <h3>
             <span>📋 Emoji Vote Log</span>
-            <button type="button" onclick="refreshEmojiLog()" style="background: #667eea; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 12px;">🔄 Refresh</button>
+            <div>
+                <button type="button" onclick="deleteEmojiLog('all')" style="background: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-right: 8px;">🗑️ Clear All</button>
+                <button type="button" onclick="refreshEmojiLog()" style="background: #667eea; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 12px;">🔄 Refresh</button>
+            </div>
         </h3>
         <table class="emoji-log-table" id="emoji-log-table">
             <thead>
@@ -514,10 +558,11 @@
                     <th>User</th>
                     <th>Time</th>
                     <th>Lap</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody id="emoji-log-body">
-                <tr><td colspan="4" class="no-log">Loading...</td></tr>
+                <tr><td colspan="5" class="no-log">Loading...</td></tr>
             </tbody>
         </table>
     </div>
@@ -553,7 +598,7 @@
     let pollInterval = null;
     let emojiPollInterval = null;
     let lastVoteTime = 0;
-    const QR_URL = 'https://testingdomainru.ru/edulite/wordcloud.php';
+    const QR_URL = 'https://testingdomain.ru/edulite/wordcloud.php';
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
     
@@ -577,6 +622,8 @@
         if (username) {
             document.getElementById('user-badge').textContent = '👤 ' + username;
             document.getElementById('login-modal').classList.add('hidden');
+            // Log user login (track by IP)
+            logUserLogin(username);
         } else {
             document.getElementById('login-modal').classList.remove('hidden');
         }
@@ -588,6 +635,10 @@
         // Emoji stats polling
         updateEmojiStats();
         emojiPollInterval = setInterval(updateEmojiStats, 3000);
+        
+        // User count polling
+        updateUserCount();
+        setInterval(updateUserCount, 5000);
         
         // Check for emoji animations
         checkEmojiAnimation();
@@ -680,6 +731,32 @@
         }
     }
     
+    function deleteEmojiLog(type, index = -1) {
+        if (type === 'all') {
+            if (!confirm('⚠️ Delete ALL emoji vote history? This cannot be undone!')) {
+                return;
+            }
+        } else {
+            if (!confirm('Delete this vote entry?')) {
+                return;
+            }
+        }
+        
+        fetch(API, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'action=delete_emoji_log&type=' + type + (index >= 0 ? '&index=' + index : '')
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                refreshEmojiLog();
+                updateEmojiStats();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        }).catch(err => alert('Error: ' + err));
+    }
+    
     function refreshEmojiLog() {
         if (!showEmojiLogMode) return;
         
@@ -690,11 +767,11 @@
                     const tbody = document.getElementById('emoji-log-body');
                     
                     if (data.log.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="4" class="no-log">No votes yet</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="5" class="no-log">No votes yet</td></tr>';
                         return;
                     }
                     
-                    tbody.innerHTML = data.log.map(entry => {
+                    tbody.innerHTML = data.log.map((entry, index) => {
                         const date = new Date(entry.time * 1000);
                         const timeStr = date.toLocaleTimeString();
                         const emoji = EMOJI_MAP[entry.emoji] || entry.emoji;
@@ -706,6 +783,7 @@
                             '<td class="col-user">' + escapeHtml(userDisplay) + '</td>' +
                             '<td class="col-time">' + timeStr + '</td>' +
                             '<td><span class="col-lap">' + lapNum + '</span></td>' +
+                            '<td class="col-action"><button type="button" class="delete-row-btn" onclick="deleteEmojiLog(\'single\', ' + index + ')">🗑️</button></td>' +
                             '</tr>';
                     }).join('');
                 }
@@ -843,6 +921,32 @@
         }).catch(err => console.error(err));
     }
     
+    function updateUserCount() {
+        fetch(API + '?action=get_user_count')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const userDisplay = document.getElementById('user-count-display');
+                    if (userDisplay) {
+                        userDisplay.textContent = '👥 ' + data.label;
+                    }
+                }
+            })
+            .catch(err => console.error('User count error:', err));
+    }
+    
+    function logUserLogin(user) {
+        fetch(API, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'action=log_user_login&username=' + encodeURIComponent(user)
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                updateUserCount();
+            }
+        }).catch(err => console.error('Login log error:', err));
+    }
+    
     function checkEmojiAnimation() {
         fetch(API + '?action=get_emoji_animation').then(r => r.json()).then(data => {
             if (data.emoji) {
@@ -880,6 +984,9 @@
             document.getElementById('user-badge').textContent = '👤 ' + username;
             document.getElementById('login-modal').classList.add('hidden');
             document.getElementById('word-input').focus();
+            
+            // Log user login (track by IP)
+            logUserLogin(username);
         }
     }
     
