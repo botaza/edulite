@@ -822,9 +822,9 @@
                 document.getElementById('stat-happy').textContent = lap.happy || 0;
                 document.getElementById('stat-help').textContent = lap.help || 0;
                 
-                // Admin stats show ALL-TIME totals (FIXED - uses data.allTime)
+                // Admin stats show ALL-TIME totals
                 if (isAdmin && showEmojiStatsMode) {
-                    const all = data.allTime;  // ← This is ALL-TIME, not current lap!
+                    const all = data.allTime;
                     document.getElementById('lap-number').textContent = data.lapNumber || 1;
                     document.getElementById('total-votes').textContent = all.total || 0;
                     
