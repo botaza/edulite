@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - AUTO-OPEN PDF ON UPLOAD -->
+<!-- File 11 of 8: modules.php - AUTO-OPEN PDF ON UPLOAD + VIEW OPTION -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -488,6 +488,7 @@
         <button type="button" onclick="toggleModule('wordcloud')" id="btn-module-wordcloud">☁️ Word Cloud</button>
         <button type="button" onclick="toggleModule('pdf_viewer')" id="btn-module-pdf">📄 PDF</button>
         <button type="button" onclick="uploadPdf()" id="btn-quick-upload-pdf" style="background: #27ae60;">📤 Upload PDF</button>
+        <button type="button" onclick="viewPdf()" style="background: #3498db;">👁️ View PDF</button>
         <button type="button" onclick="toggleModule('emoji_meter')" id="btn-module-emoji">📱 Emoji</button>
     </div>
     
@@ -517,6 +518,7 @@
                     <div class="pdf-time" id="admin-pdf-time"></div>
                 </div>
                 <button class="btn-success" onclick="uploadPdf()">📤 Upload/Change PDF</button>
+                <button type="button" class="btn-primary" onclick="viewPdf()">👁️ View Current PDF</button>
                 <button class="btn-danger" onclick="deletePdf()">🗑️ Delete PDF</button>
             </div>
             
@@ -563,7 +565,7 @@
         </div>
     </div>
     
-    <!-- Emoji Log Section (SEPARATE - Not in Admin Panel) -->
+    <!-- Emoji Log Section -->
     <div class="emoji-log-section hidden" id="emoji-log-section">
         <h3>
             <span>📋 Emoji Vote Log</span>
@@ -603,7 +605,7 @@
         </div>
     </div>
     
-    <!-- PDF Viewer Module - TRUE INFINITE SCROLL -->
+    <!-- PDF Viewer Module -->
     <div class="module-section hidden" id="module-pdf">
         <h2>📄 PDF Viewer (Infinite Scroll)</h2>
         <div class="pdf-viewer-container" id="pdf-viewer">
@@ -697,12 +699,11 @@
     let modulesConfig = {};
     let lastVoteTime = 0;
     let pollInterval = null;
-    let adminPanelOpen = false;
-    let showEmojiLogMode = false;
     let deleteMode = false;
     let showUsernamesMode = false;
+    let showEmojiLogMode = false;
     
-    // PDF.js variables - TRUE INFINITE SCROLL
+    // PDF.js variables
     let pdfDoc = null;
     let scale = 1.0;
     let currentPdfFilename = '';
@@ -761,40 +762,6 @@
             .catch(err => console.error(err));
     }
     
-    // PATCH 1: Stats button shows ONLY emoji stats, no full panel toggle
-    function toggleAdminPanel() {
-        if (!isAdmin) return;
-        
-        const statsCard = document.getElementById('emoji-stats-card');
-        const btn = document.getElementById('btn-emoji-stats');
-        
-        if (statsCard && btn) {
-            const isHidden = statsCard.classList.contains('hidden');
-            
-            // Hide all admin cards first
-            document.querySelectorAll('#admin-panel .admin-card').forEach(card => {
-                card.classList.add('hidden');
-            });
-            
-            if (isHidden) {
-                // Show ONLY emoji stats card
-                statsCard.classList.remove('hidden');
-                document.getElementById('admin-panel').classList.remove('hidden');
-                document.getElementById('admin-panel').classList.add('visible');
-                btn.classList.add('active');
-                btn.textContent = '📊 Stats ON';
-                updateAdminPanel();
-            } else {
-                // Hide stats card and panel
-                statsCard.classList.add('hidden');
-                document.getElementById('admin-panel').classList.add('hidden');
-                document.getElementById('admin-panel').classList.remove('visible');
-                btn.classList.remove('active');
-                btn.textContent = '📊 Stats';
-            }
-        }
-    }
-    
     function loadModulesConfig() {
         fetch(API + '?action=get_modules_config')
             .then(r => r.json())
@@ -803,8 +770,6 @@
                     modulesConfig = data.config;
                     renderModules();
                     updateAdminButtons();
-                    // If stats are showing, refresh them
-                    if (adminPanelOpen) updateAdminPanel();
                 }
             })
             .catch(err => console.error(err));
@@ -849,8 +814,38 @@
         }
     }
     
+    function toggleAdminPanel() {
+        if (!isAdmin) return;
+        
+        const statsCard = document.getElementById('emoji-stats-card');
+        const btn = document.getElementById('btn-emoji-stats');
+        
+        if (statsCard && btn) {
+            const isHidden = statsCard.classList.contains('hidden');
+            
+            document.querySelectorAll('#admin-panel .admin-card').forEach(card => {
+                card.classList.add('hidden');
+            });
+            
+            if (isHidden) {
+                statsCard.classList.remove('hidden');
+                document.getElementById('admin-panel').classList.remove('hidden');
+                document.getElementById('admin-panel').classList.add('visible');
+                btn.classList.add('active');
+                btn.textContent = '📊 Stats ON';
+                updateAdminPanel();
+            } else {
+                statsCard.classList.add('hidden');
+                document.getElementById('admin-panel').classList.add('hidden');
+                document.getElementById('admin-panel').classList.remove('visible');
+                btn.classList.remove('active');
+                btn.textContent = '📊 Stats';
+            }
+        }
+    }
+    
     function updateAdminPanel() {
-        if (!adminPanelOpen || !isAdmin) return;
+        if (!isAdmin) return;
         
         fetch(API + '?action=get_emoji_stats')
             .then(r => r.json())
@@ -975,7 +970,32 @@
         }
     }
     
-    // PATCH 2: Auto-open PDF after upload
+    // View PDF (manual open)
+    function viewPdf() {
+        if (!isAdmin) return;
+        
+        // Enable PDF module if it's off
+        if (!modulesConfig.pdf_viewer) {
+            modulesConfig.pdf_viewer = true;
+            fetch(API, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter
+            });
+            const btnPdf = document.getElementById('btn-module-pdf');
+            if (btnPdf) {
+                btnPdf.classList.add('active');
+                btnPdf.textContent = '✅ PDF';
+            }
+        }
+        
+        const pdfModule = document.getElementById('module-pdf');
+        pdfModule.classList.remove('hidden');
+        loadPdf();
+        pdfModule.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    // Upload PDF + auto open
     function uploadPdf() {
         if (!isAdmin) return;
         const input = document.createElement('input');
@@ -992,16 +1012,14 @@
                         if (data.success) {
                             alert('✅ PDF uploaded!');
                             
-                            // Auto-enable PDF module if it's off
+                            // Auto-enable PDF module if off
                             if (!modulesConfig.pdf_viewer) {
                                 modulesConfig.pdf_viewer = true;
-                                // Update server config
                                 fetch(API, {
                                     method: 'POST',
                                     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                                     body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter
                                 });
-                                // Update button state
                                 const btnPdf = document.getElementById('btn-module-pdf');
                                 if (btnPdf) {
                                     btnPdf.classList.add('active');
@@ -1009,22 +1027,21 @@
                                 }
                             }
                             
-                            // Clear saved position and force fresh load
-                            localStorage.removeItem('pdfScroll_' + data.filename);
-                            localStorage.removeItem('pdfScale_' + data.filename);
+                            // Clear saved position
+                            if (currentPdfFilename) {
+                                localStorage.removeItem('pdfScroll_' + currentPdfFilename);
+                                localStorage.removeItem('pdfScale_' + currentPdfFilename);
+                            }
                             pdfIsLoaded = false;
                             currentPdfFilename = '';
                             
-                            // Show PDF module immediately
-                            const pdfModule = document.getElementById('module-pdf');
-                            if (pdfModule) {
-                                pdfModule.classList.remove('hidden');
-                                loadPdf();
-                            }
+                            // Auto open PDF viewer
+                            viewPdf();
                             
                             updateAdminPanel();
                         }
-                    });
+                    })
+                    .catch(err => console.error(err));
             }
         };
         input.click();
