@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - FULL VERSION WITH IMPROVED UPLOAD ERROR HANDLING -->
+<!-- File 11 of 8: modules.php - SEMI-TRANSPARENT DELETE + QR MODULE -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -226,7 +226,9 @@
             cursor: pointer; font-size: 12px; font-weight: bold;
             display: none; align-items: center; justify-content: center;
             z-index: 20;
+            opacity: 0.6; /* PATCH 1: Semi-transparent so word is visible behind */
         }
+        .delete-btn:hover { opacity: 1; }
         .admin-mode .delete-btn { display: flex; }
         .count-badge {
             position: absolute; top: -6px; right: -6px;
@@ -418,6 +420,39 @@
         
         .hidden { display: none !important; }
         
+        /* QR Code Module Styles */
+        .qr-section {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .qr-section h2 {
+            color: #667eea;
+            margin: 0 0 20px 0;
+            font-size: 22px;
+        }
+        #qr-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+        }
+        #qr-code {
+            width: 300px;
+            height: 300px;
+        }
+        .qr-link {
+            display: block;
+            margin-top: 15px;
+            color: #667eea;
+            font-weight: 600;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        
         @media (max-width: 480px) {
             .game-title { font-size: 22px; }
             .input-wrapper { flex-direction: column; }
@@ -427,6 +462,7 @@
             .emoji-stats { gap: 10px; }
             .emoji-stat { min-width: 60px; padding: 8px 12px; }
             .admin-grid { grid-template-columns: 1fr; }
+            #qr-code { width: 200px; height: 200px; }
         }
     </style>
 </head>
@@ -481,6 +517,7 @@
         <button type="button" onclick="uploadPdf()" id="btn-quick-upload-pdf" style="background: #27ae60;">📤 Upload PDF</button>
         <button type="button" onclick="viewPdf()" style="background: #3498db;">👁️ View PDF</button>
         <button type="button" onclick="toggleModule('emoji_meter')" id="btn-module-emoji">📱 Emoji</button>
+        <button type="button" onclick="toggleModule('qr_link')" id="btn-module-qr">🔗 QR Link</button>
     </div>
     
     <!-- Admin Panel -->
@@ -662,6 +699,17 @@
             </div>
         </div>
     </div>
+    
+    <!-- QR Link Module -->
+    <div class="module-section hidden" id="module-qr">
+        <h2>🔗 Join Link</h2>
+        <div id="qr-container">
+            <div id="qr-code"></div>
+        </div>
+        <a href="https://testingdomain.ru/edulite/modules.php" class="qr-link" target="_blank">
+            testingdomain.ru/edulite/modules.php
+        </a>
+    </div>
 </div>
 
 <script>
@@ -776,12 +824,24 @@
             emojiModule.classList.toggle('hidden', !modulesConfig.emoji_meter);
             if (modulesConfig.emoji_meter) updateEmojiStats();
         }
+        
+        // QR Module
+        const qrModule = document.getElementById('module-qr');
+        if (qrModule) {
+            if (modulesConfig.qr_link) {
+                qrModule.classList.remove('hidden');
+                generateQR();
+            } else {
+                qrModule.classList.add('hidden');
+            }
+        }
     }
     
     function updateAdminButtons() {
         const btnWc = document.getElementById('btn-module-wordcloud');
         const btnPdf = document.getElementById('btn-module-pdf');
         const btnEmoji = document.getElementById('btn-module-emoji');
+        const btnQr = document.getElementById('btn-module-qr');
         
         if (btnWc) {
             btnWc.classList.toggle('active', modulesConfig.wordcloud);
@@ -794,6 +854,10 @@
         if (btnEmoji) {
             btnEmoji.classList.toggle('active', modulesConfig.emoji_meter);
             btnEmoji.textContent = (modulesConfig.emoji_meter ? '✅ ' : '📱 ') + 'Emoji';
+        }
+        if (btnQr) {
+            btnQr.classList.toggle('active', modulesConfig.qr_link);
+            btnQr.textContent = (modulesConfig.qr_link ? '✅ ' : '🔗 ') + 'QR Link';
         }
     }
     
@@ -869,7 +933,7 @@
         fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=' + modulesConfig.pdf_viewer + '&emoji_meter=' + modulesConfig.emoji_meter
+            body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=' + modulesConfig.pdf_viewer + '&emoji_meter=' + modulesConfig.emoji_meter + '&qr_link=' + modulesConfig.qr_link
         })
         .then(r => r.json())
         .then(data => {
@@ -960,7 +1024,7 @@
             fetch(API, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter
+                body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter + '&qr_link=' + modulesConfig.qr_link
             });
             const btnPdf = document.getElementById('btn-module-pdf');
             if (btnPdf) {
@@ -975,7 +1039,6 @@
         pdfModule.scrollIntoView({ behavior: 'smooth' });
     }
     
-    // ==================== IMPROVED UPLOAD WITH DETAILED ERROR MESSAGES ====================
     function uploadPdf() {
         if (!isAdmin) return;
         const input = document.createElement('input');
@@ -1009,7 +1072,7 @@
                             fetch(API, {
                                 method: 'POST',
                                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                                body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter
+                                body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter + '&qr_link=' + modulesConfig.qr_link
                             });
                             const btnPdf = document.getElementById('btn-module-pdf');
                             if (btnPdf) {
@@ -1206,6 +1269,25 @@
             if (viewer) viewer.scrollTop = Math.round(scrollRatio * viewer.scrollHeight);
             savePdfPosition();
         });
+    }
+    
+    function generateQR() {
+        const container = document.getElementById('qr-code');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        try {
+            new QRCode(container, {
+                text: "https://testingdomain.ru/edulite/modules.php",
+                width: 300,
+                height: 300,
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        } catch(e) {
+            console.error('QR generation error:', e);
+            container.innerHTML = '<p style="color: #e74c3c;">Error generating QR</p>';
+        }
     }
     
     function renderCloud() {
