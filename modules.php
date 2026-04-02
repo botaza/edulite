@@ -548,6 +548,7 @@
         <button type="button" onclick="toggleModule('pdf_viewer')" id="btn-module-pdf">📄 PDF</button>
         <button type="button" onclick="toggleModule('info_text')" id="btn-module-info">ℹ️ Info Text</button>
         <button type="button" onclick="openInfoTextEditor()" id="btn-edit-info" style="background:#9b59b6;">✏️ Edit Info</button>
+        <button type="button" onclick="resetUserCount()" id="btn-reset-users" style="background:#8e44ad;">👥 Reset Users</button>
         <button type="button" onclick="uploadPdf()" id="btn-quick-upload-pdf" style="background: #27ae60;">📤 Upload PDF</button>
         <button type="button" onclick="viewPdf()" style="background: #3498db;">👁️ View PDF</button>
         <button type="button" onclick="toggleModule('emoji_meter')" id="btn-module-emoji">📱 Emoji</button>
@@ -587,6 +588,7 @@
                 <button class="btn-danger" onclick="resetWords()">🗑️ Reset Word Cloud</button>
                 <button class="btn-warning" onclick="resetEmoji('lap')">🔄 Reset Current Lap</button>
                 <button class="btn-danger" onclick="resetEmoji('all')">⚠️ Reset All Emoji</button>
+                <button class="btn-warning" onclick="resetUserCount()" style="margin-top:8px;">👥 Reset User Count</button>
             </div>
            
             <div class="admin-card" id="emoji-stats-card">
@@ -912,6 +914,28 @@
             }
         })
         .catch(() => alert('❌ Network error while saving'));
+    }
+
+    // NEW: Reset User Count Function
+    function resetUserCount() {
+        if (!isAdmin) return;
+        if (confirm('👥 Reset the live user count? This will clear all logged-in users from the session.')) {
+            fetch(API, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'action=reset_user_count'
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ User count reset successfully!');
+                    updateUserCount();
+                } else {
+                    alert('❌ Failed to reset user count');
+                }
+            })
+            .catch(() => alert('❌ Network error while resetting users'));
+        }
     }
    
     function renderModules() {
