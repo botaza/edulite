@@ -1,9 +1,10 @@
-<!-- File 11 of 8: modules.php - DYNAMIC QR LINK -->
+<!-- File 11 of 8: modules.php - DYNAMIC QR LINK (MOBILE OPTIMIZED) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- FIXED: Allow user scaling for mobile accessibility -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Modules - EduLite</title>
     <link rel="stylesheet" href="css/style.css">
@@ -14,6 +15,7 @@
             padding: 0; margin: 0;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            -webkit-text-size-adjust: 100%; /* Prevent iOS text zoom */
         }
         .game-container { max-width: 1200px; margin: 0 auto; padding: 15px; }
         .game-header {
@@ -146,6 +148,7 @@
             overflow-y: auto;
             display: none;
             border-top: 3px solid #667eea;
+            -webkit-overflow-scrolling: touch;
         }
         .emoji-log-section.visible {
             display: block;
@@ -297,11 +300,15 @@
             to { opacity: 1; transform: scale(1); }
         }
         
+        /* PDF VIEWER - MOBILE OPTIMIZED */
         .pdf-viewer-container {
             height: 70vh;
             background: #525659;
             border-radius: 10px;
             overflow-y: scroll;
+            -webkit-overflow-scrolling: touch; /* Smooth iOS scrolling */
+            overscroll-behavior: contain;       /* Prevent scroll chaining */
+            touch-action: pan-y;                /* Allow vertical scroll only */
             position: relative;
         }
         .pdf-controls {
@@ -342,6 +349,7 @@
             margin: 0 auto 20px auto;
             box-shadow: 0 4px 8px rgba(0,0,0,0.3);
             max-width: 100%;
+            pointer-events: none; /* Prevent canvas from intercepting touch */
         }
         .page-number-indicator {
             background: rgba(0,0,0,0.7);
@@ -378,6 +386,7 @@
             min-width: 100px; min-height: 80px; display: flex;
             flex-direction: column; align-items: center; justify-content: center;
             gap: 8px;
+            -webkit-tap-highlight-color: transparent;
         }
         .emoji-btn:hover {
             transform: scale(1.05); border-color: #667eea;
@@ -479,7 +488,8 @@
             word-break: break-all;
         }
         
-        @media (max-width: 480px) {
+        /* MOBILE RESPONSIVE FIXES */
+        @media (max-width: 768px) {
             .game-title { font-size: 22px; }
             .input-wrapper { flex-direction: column; }
             .input-wrapper input, .input-wrapper button { width: 100%; }
@@ -491,6 +501,44 @@
             #qr-code { width: 200px; height: 200px; }
             .emoji-log-section { max-height: 50vh; }
             .emoji-log-table { font-size: 11px; }
+            
+            /* PDF Controls - Larger Touch Targets */
+            .pdf-controls {
+                gap: 10px;
+                padding: 15px;
+                flex-wrap: wrap;
+            }
+            .pdf-controls button {
+                padding: 12px 20px;
+                font-size: 16px;
+                min-height: 44px;
+                min-width: 44px;
+                margin: 2px;
+            }
+            .pdf-controls span {
+                font-size: 16px;
+                min-width: 100px;
+            }
+            .pdf-viewer-container {
+                height: 65vh;
+            }
+            .pdf-page-canvas {
+                margin-bottom: 15px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .game-title { font-size: 20px; }
+            .emoji-btn { min-width: 70px; min-height: 65px; padding: 10px 15px; }
+            .emoji-btn .emoji-icon { font-size: 28px; }
+            .emoji-btn .emoji-label { font-size: 11px; }
+            #qr-code { width: 180px; height: 180px; }
+            .page-number-indicator {
+                font-size: 11px;
+                padding: 4px 12px;
+                bottom: 15px;
+                right: 15px;
+            }
         }
     </style>
 </head>
@@ -814,6 +862,26 @@
         window.addEventListener('beforeunload', savePdfPosition);
         window.addEventListener('pagehide', savePdfPosition);
         
+        // Enhance PDF control buttons for touch devices
+        document.querySelectorAll('.pdf-controls button').forEach(btn => {
+            btn.addEventListener('touchstart', function(e) {
+                if (!e.defaultPrevented) {
+                    e.preventDefault();
+                    this.click();
+                }
+            }, { passive: false });
+        });
+        
+        // Enhance emoji buttons for touch
+        document.querySelectorAll('.emoji-btn').forEach(btn => {
+            btn.addEventListener('touchstart', function(e) {
+                if (!this.classList.contains('disabled')) {
+                    e.preventDefault();
+                    this.click();
+                }
+            }, { passive: false });
+        });
+        
         setTimeout(() => {
             const input = document.getElementById('word-input');
             if (input) input.focus();
@@ -867,18 +935,11 @@
         if (pdfModule) {
             pdfModule.classList.toggle('hidden', !modulesConfig.pdf_viewer);
             if (modulesConfig.pdf_viewer) {
-                // ── KEY FIX ──────────────────────────────────────────────────
-                // Only call loadPdf() from the poll path when we haven't loaded
-                // a PDF yet, or when the server reports a different file.
-                // If the PDF is already loaded and the filename hasn't changed,
-                // skip entirely so zoom / scroll state is never touched.
                 if (!pdfIsLoaded) {
                     loadPdf();
                 } else {
-                    // Quick lightweight check: has the server's file changed?
                     checkPdfChanged();
                 }
-                // ─────────────────────────────────────────────────────────────
             }
         }
         
@@ -899,13 +960,11 @@
         }
     }
 
-    // Lightweight poll helper: fetch PDF info and reload only if the file changed.
     function checkPdfChanged() {
         fetch(API + '?action=get_pdf_info')
             .then(r => r.json())
             .then(data => {
                 if (!data.success || !data.hasPdf) {
-                    // PDF was deleted server-side — clear the viewer.
                     if (pdfIsLoaded) {
                         pdfIsLoaded = false;
                         currentPdfFilename = '';
@@ -921,10 +980,8 @@
                     return;
                 }
 
-                // Same file as before — do nothing, preserving zoom & scroll.
                 if (data.filename === lastKnownServerFilename) return;
 
-                // File changed — do a full reload.
                 pdfIsLoaded = false;
                 loadPdf();
             })
@@ -1143,7 +1200,6 @@
         
         const pdfModule = document.getElementById('module-pdf');
         pdfModule.classList.remove('hidden');
-        // Force a fresh load (admin explicitly requested view)
         pdfIsLoaded = false;
         loadPdf();
         pdfModule.scrollIntoView({ behavior: 'smooth' });
@@ -1191,7 +1247,6 @@
                             }
                         }
                         
-                        // Clear stale position data for old file
                         if (currentPdfFilename) {
                             localStorage.removeItem('pdfScroll_' + currentPdfFilename);
                             localStorage.removeItem('pdfScale_' + currentPdfFilename);
@@ -1260,14 +1315,10 @@
                     return;
                 }
 
-                // ── KEY FIX ──────────────────────────────────────────────────
-                // If the file is already loaded and hasn't changed, bail out
-                // immediately — do NOT touch scale, scroll, or the DOM.
                 if (pdfIsLoaded && data.filename === currentPdfFilename) {
                     lastKnownServerFilename = data.filename;
                     return;
                 }
-                // ─────────────────────────────────────────────────────────────
                 
                 currentPdfFilename = data.filename;
                 lastKnownServerFilename = data.filename;
@@ -1378,23 +1429,42 @@
         reloadPdfWithScale();
     }
     
+    // FIXED: Enhanced zoom function for mobile reliability
     function reloadPdfWithScale() {
         const viewer = document.getElementById('pdf-viewer');
-        const scrollRatio = viewer ? viewer.scrollTop / Math.max(viewer.scrollHeight, 1) : 0;
-        const zoomLabel = document.getElementById('zoom-label');
-        if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
-        
-        renderedPages = {};
         const container = document.getElementById('pdf-pages');
+        
+        // Save position BEFORE clearing
+        const scrollPos = viewer ? viewer.scrollTop : 0;
+        const zoomLabel = document.getElementById('zoom-label');
+        
+        if (zoomLabel) {
+            zoomLabel.textContent = 'Zoom: ' + Math.round(scale * 100) + '%';
+        }
+        
+        // Clear and re-render
+        renderedPages = {};
         if (container) container.innerHTML = '';
         
+        // Re-render all pages
         renderAllPages().then(() => {
-            if (viewer) viewer.scrollTop = Math.round(scrollRatio * viewer.scrollHeight);
+            // Force browser reflow to ensure canvas renders
+            if (container) container.offsetHeight;
+            
+            // Restore scroll position
+            if (viewer) {
+                viewer.scrollTop = scrollPos;
+                // Small delay ensures scroll applies after render
+                setTimeout(() => {
+                    viewer.scrollTop = scrollPos;
+                    updatePageIndicator();
+                }, 50);
+            }
             savePdfPosition();
         });
     }
     
-    // DYNAMIC QR GENERATION - Creates unique QR for current module instance
+    // DYNAMIC QR GENERATION
     function generateQR() {
         const container = document.getElementById('qr-code');
         const linkDisplay = document.getElementById('qr-link-display');
@@ -1693,6 +1763,63 @@
             else submitWord();
         }
     });
+    
+    // OPTIONAL: Pinch-to-zoom support for PDF viewer
+    function initPinchZoom() {
+        const viewer = document.getElementById('pdf-viewer');
+        if (!viewer) return;
+        
+        let initialScale = scale;
+        let initialDistance = 0;
+        let pinchTimeout = null;
+        
+        viewer.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                initialDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                initialScale = scale;
+                if (pinchTimeout) clearTimeout(pinchTimeout);
+                e.preventDefault();
+            }
+        }, { passive: false });
+        
+        viewer.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2 && initialDistance > 0) {
+                const currentDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                const newScale = Math.max(0.5, Math.min(3.0, 
+                    initialScale * (currentDistance / initialDistance)
+                ));
+                if (Math.abs(newScale - scale) > 0.1) {
+                    scale = parseFloat(newScale.toFixed(2));
+                    reloadPdfWithScale();
+                }
+                e.preventDefault();
+            }
+        }, { passive: false });
+        
+        viewer.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) {
+                pinchTimeout = setTimeout(() => {
+                    initialDistance = 0;
+                }, 300);
+            }
+        });
+    }
+    
+    // Initialize pinch zoom after PDF loads
+    const originalLoadPdf = loadPdf;
+    loadPdf = function() {
+        originalLoadPdf();
+        // Wait for PDF to finish loading before enabling pinch
+        setTimeout(() => {
+            if (pdfIsLoaded) initPinchZoom();
+        }, 500);
+    };
 </script>
 
 </body>
