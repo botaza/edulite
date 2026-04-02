@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - SCROLL + ZOOM FIXED -->
+<!-- File 11 of 8: modules.php - PINCH ZOOM WORKING -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -337,6 +337,8 @@
             flex-direction: column;
             align-items: center;
             gap: 0;
+            transform-origin: top center;
+            transition: transform 0.05s ease-out;
         }
         .pdf-page-canvas {
             display: block;
@@ -787,7 +789,7 @@
     let scrollTimeout = null;
     let pdfIsLoaded = false;
     
-    // PINCH ZOOM variables - SIMPLIFIED
+    // PINCH ZOOM variables
     let initialPinchDistance = 0;
     let baseScale = 1.0;
     let isPinching = false;
@@ -878,13 +880,12 @@
         return count;
     }
     
-    // ============ PINCH ZOOM - FIXED ============
+    // ============ PINCH ZOOM - WORKING ============
     
     function setupPinchZoom() {
         const viewer = document.getElementById('pdf-viewer');
         if (!viewer) return;
         
-        // Only handle touch events, don't block scrolling
         viewer.addEventListener('touchstart', handleTouchStart, { passive: true });
         viewer.addEventListener('touchmove', handleTouchMove, { passive: false });
         viewer.addEventListener('touchend', handleTouchEnd, { passive: true });
@@ -908,10 +909,9 @@
     }
     
     function handleTouchMove(e) {
-        // Only prevent default if actually pinching with 2 fingers
         if (!isPinching || e.touches.length !== 2 || !pdfDoc) return;
         
-        e.preventDefault(); // Only block scroll during actual pinch
+        e.preventDefault();
         
         const currentDistance = getPinchDistance(e.touches);
         if (initialPinchDistance > 0 && currentDistance > 0) {
@@ -919,7 +919,13 @@
             const newScale = baseScale * scaleChange;
             const clampedScale = Math.max(0.5, Math.min(3.0, newScale));
             
-            // Update zoom label in real-time
+            // Apply CSS transform for instant visual feedback
+            const container = document.getElementById('pdf-pages');
+            if (container) {
+                container.style.transform = `scale(${scaleChange})`;
+            }
+            
+            // Update zoom label
             const zoomLabel = document.getElementById('zoom-label');
             if (zoomLabel) {
                 zoomLabel.textContent = 'Zoom: ' + (clampedScale * 100).toFixed(0) + '%';
@@ -931,21 +937,31 @@
         if (!isPinching || !pdfDoc) return;
         
         isPinching = false;
-        const currentDistance = getPinchDistance(e.changedTouches);
         
-        if (initialPinchDistance > 0 && currentDistance > 0) {
-            const scaleChange = currentDistance / initialPinchDistance;
-            const newScale = baseScale * scaleChange;
-            const clampedScale = Math.max(0.5, Math.min(3.0, newScale));
-            
-            // Only commit if change is significant (>10%)
-            if (Math.abs(clampedScale - scale) > 0.1) {
-                scale = clampedScale;
-                console.log('Pinch committed - new scale:', scale);
+        // Reset CSS transform
+        const container = document.getElementById('pdf-pages');
+        if (container) {
+            container.style.transform = 'scale(1)';
+        }
+        
+        // Calculate final scale
+        const touches = e.changedTouches;
+        if (touches.length >= 2) {
+            const finalDistance = getPinchDistance(touches);
+            if (initialPinchDistance > 0 && finalDistance > 0) {
+                const scaleChange = finalDistance / initialPinchDistance;
+                const newScale = baseScale * scaleChange;
+                const clampedScale = Math.max(0.5, Math.min(3.0, newScale));
                 
-                // Save and re-render
-                savePdfPosition();
-                reloadPdfWithScale();
+                // Only commit if change is significant
+                if (Math.abs(clampedScale - scale) > 0.1) {
+                    scale = clampedScale;
+                    console.log('Pinch committed - new scale:', scale);
+                    
+                    // Save and re-render
+                    savePdfPosition();
+                    reloadPdfWithScale();
+                }
             }
         }
     }
@@ -1460,6 +1476,12 @@
         if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
         
         console.log('Reloading PDF at scale:', scale);
+        
+        // Reset CSS transform
+        const container = document.getElementById('pdf-pages');
+        if (container) {
+            container.style.transform = 'scale(1)';
+        }
         
         renderedPages = {};
         const pagesContainer = document.getElementById('pdf-pages');
