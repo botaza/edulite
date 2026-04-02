@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - LIVE USER COUNT + PINCH ZOOM -->
+<!-- File 11 of 8: modules.php - PINCH ZOOM FIXED -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,7 +14,7 @@
             padding: 0; margin: 0;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            touch-action: pan-x pan-y; /* Allow panning but prevent browser zoom */
+            touch-action: pan-x pan-y;
         }
         .game-container { max-width: 1200px; margin: 0 auto; padding: 15px; }
         .game-header {
@@ -304,7 +304,7 @@
             border-radius: 10px;
             overflow-y: scroll;
             position: relative;
-            touch-action: pan-x pan-y; /* Allow panning but prevent browser zoom */
+            touch-action: pan-x pan-y;
         }
         .pdf-controls {
             background: #333;
@@ -338,13 +338,15 @@
             flex-direction: column;
             align-items: center;
             gap: 0;
+            transform-origin: top center;
+            transition: transform 0.1s ease-out;
         }
         .pdf-page-canvas {
             display: block;
             margin: 0 auto 20px auto;
             box-shadow: 0 4px 8px rgba(0,0,0,0.3);
             max-width: 100%;
-            touch-action: none; /* Allow pinch zoom on PDF */
+            touch-action: none;
         }
         .page-number-indicator {
             background: rgba(0,0,0,0.7);
@@ -789,14 +791,15 @@
     let scrollTimeout = null;
     let pdfIsLoaded = false;
     
-    // PINCH ZOOM variables
+    // PINCH ZOOM variables - FIXED
     let initialPinchDistance = 0;
     let initialPinchScale = 1.0;
     let isPinching = false;
+    let pinchVisualScale = 1.0; // For CSS transform visual feedback
     
     // LIVE USER COUNT variables
     const USER_ACTIVITY_TIMEOUT = 60000; // 1 minute in ms
-    let userActivity = {}; // { username: lastActivityTimestamp }
+    let userActivity = {};
     
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
@@ -817,14 +820,13 @@
         
         pollInterval = setInterval(loadModulesConfig, 5000);
         setInterval(updateEmojiStats, 3000);
-        setInterval(updateUserCount, 2000); // Update user count more frequently
+        setInterval(updateUserCount, 2000);
         setInterval(checkEmojiAnimation, 1000);
-        setInterval(cleanupInactiveUsers, 30000); // Clean up every 30s
+        setInterval(cleanupInactiveUsers, 30000);
         
         window.addEventListener('beforeunload', savePdfPosition);
         window.addEventListener('pagehide', savePdfPosition);
         
-        // Setup pinch zoom for PDF viewer
         setupPinchZoom();
         
         setTimeout(() => {
@@ -835,17 +837,14 @@
     
     // ============ LIVE USER COUNT FUNCTIONS ============
     
-    // Update user's last activity timestamp
     function updateUserActivity(user) {
         if (!user) return;
         userActivity[user] = Date.now();
-        // Also save to localStorage for persistence across page reloads
         try {
             localStorage.setItem('eduUserActivity_' + user, Date.now().toString());
         } catch(e) {}
     }
     
-    // Load user activity from localStorage on page load
     function loadUserActivity() {
         try {
             for (let i = 0; i < localStorage.length; i++) {
@@ -861,12 +860,10 @@
         } catch(e) {}
     }
     
-    // Clean up users inactive for more than 1 minute
     function cleanupInactiveUsers() {
         const now = Date.now();
         for (const user in userActivity) {
             if (now - userActivity[user] > USER_ACTIVITY_TIMEOUT * 2) {
-                // Remove from memory and localStorage if very old
                 delete userActivity[user];
                 try {
                     localStorage.removeItem('eduUserActivity_' + user);
@@ -875,7 +872,6 @@
         }
     }
     
-    // Count only active users (activity within last 60 seconds)
     function getActiveUserCount() {
         const now = Date.now();
         let count = 0;
@@ -887,13 +883,12 @@
         return count;
     }
     
-    // ============ PINCH ZOOM FUNCTIONS ============
+    // ============ PINCH ZOOM FUNCTIONS - FIXED ============
     
     function setupPinchZoom() {
         const viewer = document.getElementById('pdf-viewer');
         if (!viewer) return;
         
-        // Prevent default touch actions that interfere with pinch
         viewer.addEventListener('touchstart', handleTouchStart, { passive: false });
         viewer.addEventListener('touchmove', handleTouchMove, { passive: false });
         viewer.addEventListener('touchend', handleTouchEnd, { passive: false });
@@ -913,6 +908,8 @@
             isPinching = true;
             initialPinchDistance = getPinchDistance(e.touches);
             initialPinchScale = scale;
+            pinchVisualScale = 1.0; // Reset visual scale
+            console.log('Pinch start:', initialPinchDistance, 'base scale:', scale);
         }
     }
     
@@ -922,17 +919,24 @@
         
         const currentDistance = getPinchDistance(e.touches);
         if (initialPinchDistance > 0 && currentDistance > 0) {
-            const newScale = initialPinchScale * (currentDistance / initialPinchDistance);
-            // Clamp scale between 0.5 and 3.0
-            const clampedScale = Math.max(0.5, Math.min(3.0, newScale));
+            // Calculate the visual scale factor for CSS transform
+            pinchVisualScale = currentDistance / initialPinchDistance;
             
-            if (Math.abs(clampedScale - scale) > 0.05) { // Only update if significant change
-                scale = clampedScale;
-                // Update zoom label if visible
-                const zoomLabel = document.getElementById('zoom-label');
-                if (zoomLabel) {
-                    zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
-                }
+            // Calculate the target scale (base scale * pinch factor)
+            const targetScale = initialPinchScale * pinchVisualScale;
+            const clampedScale = Math.max(0.5, Math.min(3.0, targetScale));
+            
+            // Apply CSS transform for instant visual feedback
+            const container = document.getElementById('pdf-pages');
+            if (container) {
+                container.style.transform = `scale(${pinchVisualScale})`;
+                container.style.transformOrigin = 'top center';
+            }
+            
+            // Update the zoom label to show what the committed scale will be
+            const zoomLabel = document.getElementById('zoom-label');
+            if (zoomLabel) {
+                zoomLabel.textContent = 'Zoom: ' + (clampedScale * 100).toFixed(0) + '%';
             }
         }
     }
@@ -941,8 +945,31 @@
         if (isPinching && pdfDoc) {
             e.preventDefault();
             isPinching = false;
-            // Apply the new scale by re-rendering
-            reloadPdfWithScale();
+            
+            // Calculate the final committed scale
+            const finalScale = initialPinchScale * pinchVisualScale;
+            const clampedScale = Math.max(0.5, Math.min(3.0, finalScale));
+            
+            // Only commit if the change is significant
+            if (Math.abs(clampedScale - scale) > 0.1) {
+                scale = clampedScale;
+                
+                // Reset CSS transform
+                const container = document.getElementById('pdf-pages');
+                if (container) {
+                    container.style.transform = 'scale(1)';
+                }
+                
+                // Re-render PDF with new scale
+                reloadPdfWithScale();
+                console.log('Pinch committed: scale =', scale);
+            } else {
+                // Revert visual transform if change was too small
+                const container = document.getElementById('pdf-pages');
+                if (container) {
+                    container.style.transform = 'scale(1)';
+                }
+            }
         }
     }
     
@@ -1346,6 +1373,7 @@
                 
                 scale = savedScale ? parseFloat(savedScale) : 1.0;
                 renderedPages = {};
+                pinchVisualScale = 1.0;
                 
                 const loadingTask = pdfjsLib.getDocument('data/' + currentPdfFilename);
                 loadingTask.promise.then(pdf => {
@@ -1452,9 +1480,15 @@
         const zoomLabel = document.getElementById('zoom-label');
         if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
         
-        renderedPages = {};
+        // Reset any CSS transform
         const container = document.getElementById('pdf-pages');
-        if (container) container.innerHTML = '';
+        if (container) {
+            container.style.transform = 'scale(1)';
+        }
+        
+        renderedPages = {};
+        const pagesContainer = document.getElementById('pdf-pages');
+        if (pagesContainer) pagesContainer.innerHTML = '';
         
         renderAllPages().then(() => {
             if (viewer) viewer.scrollTop = Math.round(scrollRatio * viewer.scrollHeight);
@@ -1561,7 +1595,6 @@
         btn.textContent = 'Sending...';
         btn.disabled = true;
         
-        // Update user activity
         updateUserActivity(username);
         
         fetch(API, {
@@ -1662,7 +1695,6 @@
         btn.disabled = true;
         lastVoteTime = now;
         
-        // Update user activity
         updateUserActivity(username);
         
         fetch(API, {
@@ -1692,7 +1724,6 @@
     }
     
     function updateUserCount() {
-        // Load activity from localStorage on first call
         if (Object.keys(userActivity).length === 0) {
             loadUserActivity();
         }
@@ -1702,7 +1733,6 @@
             .then(data => {
                 const display = document.getElementById('user-count-display');
                 if (display && data.success) {
-                    // Use active user count instead of server count
                     const activeCount = getActiveUserCount();
                     display.textContent = '👥 ' + activeCount + ' active';
                 }
@@ -1737,7 +1767,6 @@
     }
     
     function logUserLogin(user) {
-        // Update activity on login
         updateUserActivity(user);
         
         fetch(API, {
