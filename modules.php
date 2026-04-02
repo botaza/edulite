@@ -317,6 +317,7 @@
             to { opacity: 1; transform: scale(1); }
         }
         
+        /* PDF Viewer Styles - Fixed for pinch zoom */
         .pdf-viewer-container {
             height: 70vh;
             background: #525659;
@@ -326,6 +327,7 @@
             -webkit-overflow-scrolling: touch;
             touch-action: pan-y pinch-zoom;
         }
+        
         .pdf-controls {
             background: #333;
             padding: 10px;
@@ -336,7 +338,9 @@
             position: sticky;
             top: 0;
             z-index: 10;
+            touch-action: manipulation;
         }
+        
         .pdf-controls button {
             background: #667eea;
             color: white;
@@ -347,20 +351,25 @@
             font-size: 16px;
             min-height: 44px;
             min-width: 60px;
+            touch-action: manipulation;
         }
+        
         .pdf-controls span {
             color: white;
             font-size: 14px;
             min-width: 90px;
             text-align: center;
         }
+        
         .pdf-pages-container {
             padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 0;
+            touch-action: pan-y pinch-zoom;
         }
+        
         .pdf-page-canvas {
             display: block;
             margin: 0 auto 20px auto;
@@ -371,6 +380,7 @@
             user-select: none;
             -webkit-user-select: none;
         }
+        
         .page-number-indicator {
             background: rgba(0,0,0,0.7);
             color: white;
@@ -382,10 +392,27 @@
             right: 20px;
             z-index: 100;
         }
+        
         .no-pdf {
             display: flex; align-items: center; justify-content: center;
             height: 100%; color: #999; font-size: 18px;
             text-align: center; padding: 40px;
+        }
+        
+        /* PDF Scrollbar Styling */
+        .pdf-viewer-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        .pdf-viewer-container::-webkit-scrollbar-track {
+            background: #333;
+            border-radius: 4px;
+        }
+        
+        .pdf-viewer-container::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
         }
         
         .emoji-meter-section {
@@ -697,7 +724,7 @@
     
     <!-- PDF Viewer Module -->
     <div class="module-section hidden" id="module-pdf">
-        <h2>📄 PDF Viewer (Infinite Scroll)</h2>
+        <h2>📄 PDF Viewer (Pinch to Zoom)</h2>
         <div class="pdf-viewer-container" id="pdf-viewer">
             <div class="no-pdf">
                 <div>
@@ -856,6 +883,7 @@
     // Touch pinch zoom variables
     let initialPinchDistance = 0;
     let initialScale = 1.0;
+    let initialScrollTop = 0;
     
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
@@ -871,7 +899,6 @@
     document.addEventListener('DOMContentLoaded', () => {
         initPDFJS().then(() => console.log('PDF.js ready'));
         enhanceButtonsForTouch();
-        setupTouchEvents();
         
         if (username) {
             document.getElementById('user-badge').textContent = '👤 ' + username;
@@ -909,40 +936,97 @@
     }
     
     function setupTouchEvents() {
+        const pagesContainer = document.getElementById('pdf-pages');
         const viewer = document.getElementById('pdf-viewer');
-        if (!viewer) return;
         
-        viewer.addEventListener('touchstart', (e) => {
-            if (e.touches.length === 2) {
-                e.preventDefault();
-                initialPinchDistance = getPinchDistance(e.touches);
-                initialScale = scale;
+        if (!pagesContainer || !viewer) return;
+        
+        // Remove any existing listeners to avoid duplicates
+        pagesContainer.removeEventListener('touchstart', handlePinchStart);
+        pagesContainer.removeEventListener('touchmove', handlePinchMove);
+        pagesContainer.removeEventListener('touchend', handlePinchEnd);
+        
+        // Add new listeners to the pages container (where the actual content is)
+        pagesContainer.addEventListener('touchstart', handlePinchStart, { passive: false });
+        pagesContainer.addEventListener('touchmove', handlePinchMove, { passive: false });
+        pagesContainer.addEventListener('touchend', handlePinchEnd);
+        
+        // Also allow zoom on the viewer container
+        viewer.removeEventListener('touchstart', handlePinchStart);
+        viewer.removeEventListener('touchmove', handlePinchMove);
+        viewer.addEventListener('touchstart', handlePinchStart, { passive: false });
+        viewer.addEventListener('touchmove', handlePinchMove, { passive: false });
+    }
+    
+    function handlePinchStart(e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            initialPinchDistance = getPinchDistance(e.touches);
+            initialScale = scale;
+            // Store current scroll position ratio
+            const viewer = document.getElementById('pdf-viewer');
+            if (viewer) {
+                initialScrollTop = viewer.scrollTop;
             }
-        });
-        
-        viewer.addEventListener('touchmove', (e) => {
-            if (e.touches.length === 2) {
-                e.preventDefault();
-                const currentDistance = getPinchDistance(e.touches);
-                if (initialPinchDistance > 0) {
-                    const scaleFactor = currentDistance / initialPinchDistance;
-                    let newScale = initialScale * scaleFactor;
-                    newScale = Math.min(Math.max(newScale, 0.5), 3.0);
-                    if (Math.abs(newScale - scale) > 0.05) {
-                        scale = newScale;
-                        reloadPdfWithScale();
+        }
+    }
+    
+    function handlePinchMove(e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            const currentDistance = getPinchDistance(e.touches);
+            if (initialPinchDistance > 0) {
+                let scaleFactor = currentDistance / initialPinchDistance;
+                // Limit zoom range
+                let newScale = initialScale * scaleFactor;
+                newScale = Math.min(Math.max(newScale, 0.5), 4.0);
+                
+                if (Math.abs(newScale - scale) > 0.02) {
+                    // Store scroll ratio before zoom
+                    const viewer = document.getElementById('pdf-viewer');
+                    let scrollRatio = 0.5;
+                    if (viewer && viewer.scrollHeight > viewer.clientHeight) {
+                        scrollRatio = viewer.scrollTop / (viewer.scrollHeight - viewer.clientHeight);
+                    }
+                    
+                    scale = newScale;
+                    
+                    // Update zoom label
+                    const zoomLabel = document.getElementById('zoom-label');
+                    if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
+                    
+                    // Re-render with new scale
+                    const container = document.getElementById('pdf-pages');
+                    if (container) {
+                        const oldContainerHeight = container.scrollHeight;
+                        container.innerHTML = '';
+                        
+                        renderAllPages().then(() => {
+                            if (viewer && oldContainerHeight > 0) {
+                                // Restore scroll position ratio
+                                const newScrollHeight = viewer.scrollHeight - viewer.clientHeight;
+                                viewer.scrollTop = scrollRatio * newScrollHeight;
+                            }
+                            savePdfPosition();
+                        });
+                    }
+                    
+                    // Haptic feedback on zoom
+                    if (window.navigator && window.navigator.vibrate) {
+                        window.navigator.vibrate(20);
                     }
                 }
             }
-        });
-        
-        viewer.addEventListener('touchend', () => {
-            initialPinchDistance = 0;
-            savePdfPosition();
-        });
+        }
+    }
+    
+    function handlePinchEnd(e) {
+        initialPinchDistance = 0;
+        savePdfPosition();
     }
     
     function getPinchDistance(touches) {
+        if (touches.length < 2) return 0;
         const dx = touches[0].clientX - touches[1].clientX;
         const dy = touches[0].clientY - touches[1].clientY;
         return Math.sqrt(dx * dx + dy * dy);
@@ -1425,9 +1509,14 @@
         const container = document.getElementById('pdf-pages');
         if (!container || !pdfDoc) return;
         container.innerHTML = '';
+        container.style.touchAction = 'pan-y pinch-zoom';
+        
         for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
             await renderPage(pageNum, container);
         }
+        
+        // Re-attach touch events after rendering
+        setupTouchEvents();
     }
     
     function renderPage(pageNum, container) {
@@ -1436,8 +1525,9 @@
             const canvas = document.createElement('canvas');
             canvas.className = 'pdf-page-canvas';
             canvas.height = viewport.height;
-            canvas.width  = viewport.width;
+            canvas.width = viewport.width;
             canvas.id = 'page-' + pageNum;
+            canvas.style.touchAction = 'pan-y pinch-zoom';
             const ctx = canvas.getContext('2d');
             return page.render({canvasContext: ctx, viewport: viewport}).promise.then(() => {
                 container.appendChild(canvas);
@@ -1480,42 +1570,77 @@
     }
     
     function zoomIn() {
-        const increment = window.innerWidth < 768 ? 0.15 : 0.25;
-        scale += increment;
-        scale = Math.min(scale, 3.0);
-        reloadPdfWithScale();
+        const increment = window.innerWidth < 768 ? 0.2 : 0.25;
+        let newScale = scale + increment;
+        newScale = Math.min(newScale, 4.0);
         
-        if (window.navigator && window.navigator.vibrate) {
-            window.navigator.vibrate(50);
+        if (newScale !== scale) {
+            const viewer = document.getElementById('pdf-viewer');
+            let scrollRatio = 0.5;
+            if (viewer && viewer.scrollHeight > viewer.clientHeight) {
+                scrollRatio = viewer.scrollTop / (viewer.scrollHeight - viewer.clientHeight);
+            }
+            
+            scale = newScale;
+            
+            const zoomLabel = document.getElementById('zoom-label');
+            if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
+            
+            const container = document.getElementById('pdf-pages');
+            if (container) {
+                const oldHeight = container.scrollHeight;
+                container.innerHTML = '';
+                
+                renderAllPages().then(() => {
+                    if (viewer && oldHeight > 0) {
+                        const newScrollHeight = viewer.scrollHeight - viewer.clientHeight;
+                        viewer.scrollTop = scrollRatio * newScrollHeight;
+                    }
+                    savePdfPosition();
+                });
+            }
+            
+            if (window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate(50);
+            }
         }
     }
     
     function zoomOut() {
-        const decrement = window.innerWidth < 768 ? 0.15 : 0.25;
-        if (scale <= 0.5) return;
-        scale -= decrement;
-        scale = Math.max(scale, 0.5);
-        reloadPdfWithScale();
+        const decrement = window.innerWidth < 768 ? 0.2 : 0.25;
+        let newScale = scale - decrement;
+        newScale = Math.max(newScale, 0.5);
         
-        if (window.navigator && window.navigator.vibrate) {
-            window.navigator.vibrate(50);
+        if (newScale !== scale) {
+            const viewer = document.getElementById('pdf-viewer');
+            let scrollRatio = 0.5;
+            if (viewer && viewer.scrollHeight > viewer.clientHeight) {
+                scrollRatio = viewer.scrollTop / (viewer.scrollHeight - viewer.clientHeight);
+            }
+            
+            scale = newScale;
+            
+            const zoomLabel = document.getElementById('zoom-label');
+            if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
+            
+            const container = document.getElementById('pdf-pages');
+            if (container) {
+                const oldHeight = container.scrollHeight;
+                container.innerHTML = '';
+                
+                renderAllPages().then(() => {
+                    if (viewer && oldHeight > 0) {
+                        const newScrollHeight = viewer.scrollHeight - viewer.clientHeight;
+                        viewer.scrollTop = scrollRatio * newScrollHeight;
+                    }
+                    savePdfPosition();
+                });
+            }
+            
+            if (window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate(50);
+            }
         }
-    }
-    
-    function reloadPdfWithScale() {
-        const viewer = document.getElementById('pdf-viewer');
-        const scrollRatio = viewer ? viewer.scrollTop / Math.max(viewer.scrollHeight, 1) : 0;
-        const zoomLabel = document.getElementById('zoom-label');
-        if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
-        
-        renderedPages = {};
-        const container = document.getElementById('pdf-pages');
-        if (container) container.innerHTML = '';
-        
-        renderAllPages().then(() => {
-            if (viewer) viewer.scrollTop = Math.round(scrollRatio * viewer.scrollHeight);
-            savePdfPosition();
-        });
     }
     
     // DYNAMIC QR GENERATION - Creates unique QR for current module instance
