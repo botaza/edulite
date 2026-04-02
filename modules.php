@@ -5,10 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Modules - EduLite</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="js/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
         body {
             padding: 0; margin: 0;
@@ -37,22 +37,8 @@
         .change-name-btn {
             background: #95a5a6; color: white; border: none;
             padding: 8px 15px; border-radius: 20px; cursor: pointer;
-            font-size: 13px; min-height: 44px; min-width: 44px;
-            touch-action: manipulation;
+            font-size: 13px; min-height: auto; min-width: auto;
         }
-        
-        /* Touch optimization */
-        button, .emoji-btn, .delete-btn, .change-name-btn, .btn-primary, .btn-success, .btn-danger, .btn-warning {
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
-            cursor: pointer;
-        }
-        
-        button:active, .emoji-btn:active, .change-name-btn:active, .btn-primary:active, .btn-success:active, .btn-danger:active, .btn-warning:active {
-            transform: scale(0.96);
-            transition: transform 0.05s;
-        }
-        
         .login-modal {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.8); display: flex;
@@ -68,9 +54,9 @@
             to { transform: translateY(0); opacity: 1; }
         }
         .login-box h2 { color: #667eea; margin-bottom: 20px; }
-        .login-box input { width: 100%; max-width: none; margin: 10px 0; font-size: 16px; padding: 12px; }
-        .login-box button { width: 100%; margin: 10px 0; min-height: 44px; }
-        
+        .login-box input { width: 100%; max-width: none; margin: 10px 0; }
+        .login-box button { width: 100%; margin: 10px 0; }
+       
         .admin-controls {
             background: #fff3cd; border: 2px solid #ffc107;
             border-radius: 10px; padding: 15px; margin-bottom: 15px; text-align: center;
@@ -79,10 +65,10 @@
         .admin-controls button {
             background: #e74c3c; color: white; border: none;
             padding: 10px 20px; border-radius: 8px; cursor: pointer;
-            font-size: 14px; margin: 5px; min-height: 44px;
+            font-size: 14px; margin: 5px;
         }
         .admin-controls button.active { background: #27ae60; }
-        
+       
         .admin-panel {
             background: rgba(255,255,255,0.95); border-radius: 15px;
             padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
@@ -109,13 +95,12 @@
             width: 100%; margin: 5px 0; padding: 10px;
             border: none; border-radius: 6px;
             cursor: pointer; font-size: 13px; font-weight: 600;
-            min-height: 44px;
         }
         .btn-primary { background: #667eea; color: white; }
         .btn-success { background: #27ae60; color: white; }
         .btn-danger { background: #e74c3c; color: white; }
         .btn-warning { background: #f39c12; color: white; }
-        
+       
         .lap-info {
             background: #667eea; color: white;
             padding: 10px 15px; border-radius: 8px;
@@ -123,14 +108,14 @@
         }
         .lap-info .lap-number { font-size: 32px; font-weight: 700; }
         .lap-info .lap-label { font-size: 12px; opacity: 0.9; }
-        
+       
         .pdf-info {
             background: #f8f9fa; padding: 15px;
             border-radius: 8px; margin-bottom: 15px; text-align: center;
         }
         .pdf-info .pdf-name { font-weight: 600; color: #667eea; word-break: break-all; }
         .pdf-info .pdf-time { font-size: 12px; color: #999; margin-top: 5px; }
-        
+       
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
@@ -145,7 +130,7 @@
         .stat-box .stat-emoji { font-size: 24px; }
         .stat-box .stat-count { font-size: 20px; font-weight: 700; color: #667eea; }
         .stat-box .stat-label { font-size: 10px; color: #999; text-transform: uppercase; }
-        
+       
         /* EMOJI LOG - FIXED AT BOTTOM WHEN TOGGLED */
         .emoji-log-section {
             background: rgba(255,255,255,0.98);
@@ -177,8 +162,6 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 10px;
         }
         .emoji-log-table {
             width: 100%;
@@ -201,9 +184,9 @@
         .emoji-log-table .col-emoji { font-size: 18px; width: 40px; text-align: center; }
         .emoji-log-table .col-user { font-weight: 600; }
         .emoji-log-table .col-time { color: #999; font-size: 10px; }
-        .emoji-log-table .col-lap { 
-            background: #667eea; color: white; 
-            padding: 2px 6px; border-radius: 8px; 
+        .emoji-log-table .col-lap {
+            background: #667eea; color: white;
+            padding: 2px 6px; border-radius: 8px;
             font-size: 9px; font-weight: 600; display: inline-block;
         }
         .emoji-log-table .col-action { text-align: center; }
@@ -211,9 +194,8 @@
             background: #e74c3c; color: white;
             border: none; padding: 3px 8px;
             border-radius: 4px; cursor: pointer; font-size: 10px;
-            min-height: 30px;
         }
-        
+       
         /* MODULE SECTIONS */
         .module-section {
             background: rgba(255,255,255,0.95); border-radius: 15px;
@@ -223,7 +205,7 @@
         .module-section h2 {
             color: #667eea; margin: 0 0 20px 0; font-size: 22px; text-align: center;
         }
-        
+       
         .input-section {
             background: rgba(255,255,255,0.95); border-radius: 15px;
             padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
@@ -241,7 +223,6 @@
             font-size: 20px; padding: 20px 35px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             white-space: nowrap;
-            min-height: 44px;
         }
         #cloud-container {
             min-height: 400px; background: #fafafa; border-radius: 10px;
@@ -265,10 +246,10 @@
         }
         .delete-btn {
             position: absolute; top: -6px; left: -6px;
-            width: 24px; height: 24px;
+            width: 16px; height: 16px;
             background: #e74c3c; color: white;
             border: none; border-radius: 50%;
-            cursor: pointer; font-size: 14px; font-weight: bold;
+            cursor: pointer; font-size: 12px; font-weight: bold;
             display: none; align-items: center; justify-content: center;
             z-index: 20;
             opacity: 0.6;
@@ -315,8 +296,8 @@
             from { opacity: 0; transform: scale(0.8); }
             to { opacity: 1; transform: scale(1); }
         }
-        
-        /* PDF Viewer Styles - Using iframe for native pinch zoom */
+       
+        /* NEW SIMPLE PDF VIEWER STYLES */
         .pdf-viewer-container {
             height: 70vh;
             background: #525659;
@@ -324,52 +305,17 @@
             overflow: hidden;
             position: relative;
         }
-        
-        .pdf-iframe {
+        .pdf-embed {
             width: 100%;
             height: 100%;
             border: none;
-            background: #525659;
         }
-        
-        .pdf-controls {
-            background: #333;
-            padding: 10px;
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-        
-        .pdf-controls button {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            min-height: 44px;
-            min-width: 60px;
-            touch-action: manipulation;
-        }
-        
-        .pdf-controls span {
-            color: white;
-            font-size: 14px;
-            min-width: 90px;
-            text-align: center;
-        }
-        
         .no-pdf {
             display: flex; align-items: center; justify-content: center;
             height: 100%; color: #999; font-size: 18px;
             text-align: center; padding: 40px;
         }
-        
+       
         .emoji-meter-section {
             background: rgba(255,255,255,0.95); border-radius: 15px;
             padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
@@ -385,22 +331,19 @@
         .emoji-btn {
             background: white; border: 3px solid #ddd; border-radius: 15px;
             padding: 15px 25px; cursor: pointer; transition: all 0.2s;
-            min-width: 100px; min-height: 90px; display: flex;
+            min-width: 100px; min-height: 80px; display: flex;
             flex-direction: column; align-items: center; justify-content: center;
             gap: 8px;
-            touch-action: manipulation;
-        }
-        .emoji-btn:active {
-            transform: scale(0.96);
         }
         .emoji-btn:hover {
             transform: scale(1.05); border-color: #667eea;
             box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
         }
+        .emoji-btn:active { transform: scale(0.95); }
         .emoji-btn.disabled {
             opacity: 0.5; cursor: not-allowed; filter: grayscale(100%);
         }
-        .emoji-btn .emoji-icon { font-size: 48px; }
+        .emoji-btn .emoji-icon { font-size: 40px; }
         .emoji-btn .emoji-label {
             font-size: 13px; font-weight: 600; color: #666;
         }
@@ -420,14 +363,14 @@
         .emoji-stat .stat-label {
             font-size: 11px; color: #999; text-transform: uppercase;
         }
-        
+       
         .user-count-indicator {
             background: #3498db; color: white;
             padding: 5px 12px; border-radius: 15px;
             font-size: 12px; font-weight: 600;
             margin-left: 10px;
         }
-        
+       
         .live-indicator {
             display: inline-flex; align-items: center; gap: 6px;
             background: #27ae60; color: white; padding: 5px 12px;
@@ -441,7 +384,7 @@
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.2); }
         }
-        
+       
         .emoji-animation-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             pointer-events: none; z-index: 9999; display: none;
@@ -456,9 +399,9 @@
             50% { opacity: 1; }
             100% { transform: translateY(-100px) scale(1.5); opacity: 0; }
         }
-        
+       
         .hidden { display: none !important; }
-        
+       
         /* QR Code Module Styles */
         .qr-section {
             background: rgba(255,255,255,0.95);
@@ -491,56 +434,23 @@
             font-size: 14px;
             word-break: break-all;
         }
-        
-        /* Toast notification */
-        .toast-notification {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 25px;
-            font-size: 14px;
-            z-index: 10000;
-            pointer-events: none;
-            white-space: nowrap;
-            animation: fadeInOut 2s ease;
-        }
-        
-        @keyframes fadeInOut {
-            0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
-            15% { opacity: 1; transform: translateX(-50%) translateY(0); }
-            85% { opacity: 1; transform: translateX(-50%) translateY(0); }
-            100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-        }
-        
-        @media (max-width: 768px) {
+       
+        @media (max-width: 480px) {
             .game-title { font-size: 22px; }
             .input-wrapper { flex-direction: column; }
             .input-wrapper input, .input-wrapper button { width: 100%; }
-            .emoji-btn { min-width: 80px; min-height: 80px; padding: 12px 20px; }
-            .emoji-btn .emoji-icon { font-size: 40px; }
+            .emoji-btn { min-width: 80px; min-height: 70px; padding: 12px 20px; }
+            .emoji-btn .emoji-icon { font-size: 32px; }
             .emoji-stats { gap: 10px; }
             .emoji-stat { min-width: 60px; padding: 8px 12px; }
             .admin-grid { grid-template-columns: 1fr; }
             #qr-code { width: 200px; height: 200px; }
             .emoji-log-section { max-height: 50vh; }
             .emoji-log-table { font-size: 11px; }
-            button, .emoji-btn, .delete-btn, .change-name-btn {
-                min-height: 48px;
-                min-width: 48px;
-            }
-            .pdf-controls button {
-                padding: 10px 16px;
-                font-size: 14px;
-            }
         }
     </style>
 </head>
 <body>
-
 <!-- Login Modal -->
 <div id="login-modal" class="login-modal hidden">
     <div class="login-box">
@@ -550,10 +460,8 @@
         <button type="button" onclick="saveUsername()">Join</button>
     </div>
 </div>
-
 <!-- Emoji Animation Overlay -->
 <div class="emoji-animation-overlay" id="emoji-overlay"></div>
-
 <div class="game-container">
     <!-- Header -->
     <div class="game-header">
@@ -574,7 +482,7 @@
             <button type="button" class="change-name-btn" onclick="goHome()">← Back</button>
         </div>
     </div>
-    
+   
     <!-- Admin Controls -->
     <div class="admin-controls hidden" id="admin-controls">
         <p>⚠️ Admin Mode: Quick Controls</p>
@@ -592,14 +500,14 @@
         <button type="button" onclick="toggleModule('emoji_meter')" id="btn-module-emoji">📱 Emoji</button>
         <button type="button" onclick="toggleModule('qr_link')" id="btn-module-qr">🔗 QR Link</button>
     </div>
-    
+   
     <!-- Admin Panel -->
     <div class="admin-panel hidden" id="admin-panel">
         <h3>
             <span>⚙️ Admin Dashboard</span>
-            <button type="button" onclick="toggleAdminPanel()" style="background: #95a5a6; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 12px; min-height: 36px;">✕ Close</button>
+            <button type="button" onclick="toggleAdminPanel()" style="background: #95a5a6; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 12px;">✕ Close</button>
         </h3>
-        
+       
         <div class="admin-grid">
             <div class="admin-card">
                 <h4>🏁 Lap Management</h4>
@@ -609,7 +517,7 @@
                 </div>
                 <button class="btn-primary" onclick="newLap()">🏁 Start New Lap</button>
             </div>
-            
+           
             <div class="admin-card">
                 <h4>📄 PDF Management</h4>
                 <div class="pdf-info" id="admin-pdf-info">
@@ -620,14 +528,14 @@
                 <button type="button" class="btn-primary" onclick="viewPdf()">👁️ View Current PDF</button>
                 <button class="btn-danger" onclick="deletePdf()">🗑️ Delete PDF</button>
             </div>
-            
+           
             <div class="admin-card">
                 <h4>🔄 Reset Controls</h4>
                 <button class="btn-danger" onclick="resetWords()">🗑️ Reset Word Cloud</button>
                 <button class="btn-warning" onclick="resetEmoji('lap')">🔄 Reset Current Lap</button>
                 <button class="btn-danger" onclick="resetEmoji('all')">⚠️ Reset All Emoji</button>
             </div>
-            
+           
             <div class="admin-card" id="emoji-stats-card">
                 <h4>📊 Emoji Stats (All-Time)</h4>
                 <div class="stats-grid" id="admin-emoji-stats">
@@ -661,7 +569,7 @@
             </div>
         </div>
     </div>
-    
+   
     <!-- Word Cloud Module -->
     <div class="module-section hidden" id="module-wordcloud">
         <h2>☁️ Word Cloud</h2>
@@ -676,10 +584,10 @@
             <p style="color: #999; text-align: center; padding: 40px; font-size: 22px;">Loading...</p>
         </div>
     </div>
-    
-    <!-- PDF Viewer Module - Using iframe for native pinch zoom -->
+   
+    <!-- PDF Viewer Module - NOW USING NATIVE BROWSER EMBED -->
     <div class="module-section hidden" id="module-pdf">
-        <h2>📄 PDF Viewer (Pinch to Zoom Supported)</h2>
+        <h2>📄 PDF Viewer</h2>
         <div class="pdf-viewer-container" id="pdf-viewer">
             <div class="no-pdf">
                 <div>
@@ -689,7 +597,7 @@
             </div>
         </div>
     </div>
-    
+   
     <!-- Emoji Meter Module -->
     <div class="module-section hidden" id="module-emoji">
         <h2>📱 How Are You Doing?</h2>
@@ -744,7 +652,7 @@
             </div>
         </div>
     </div>
-    
+   
     <!-- QR Link Module -->
     <div class="module-section hidden" id="module-qr">
         <h2>🔗 Join Link</h2>
@@ -756,15 +664,14 @@
         </a>
     </div>
 </div>
-
 <!-- Emoji Log Section - FIXED AT BOTTOM -->
 <div class="emoji-log-section" id="emoji-log-section">
     <h3>
         <span>📋 Emoji Vote Log</span>
         <div>
-            <button type="button" onclick="deleteEmojiLog('all')" style="background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-right: 5px; min-height: 32px;">🗑️ Clear All</button>
-            <button type="button" onclick="refreshEmojiLog()" style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; min-height: 32px;">🔄 Refresh</button>
-            <button type="button" onclick="toggleEmojiLog()" style="background: #95a5a6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 5px; min-height: 32px;">✕ Close</button>
+            <button type="button" onclick="deleteEmojiLog('all')" style="background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-right: 5px;">🗑️ Clear All</button>
+            <button type="button" onclick="refreshEmojiLog()" style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px;">🔄 Refresh</button>
+            <button type="button" onclick="toggleEmojiLog()" style="background: #95a5a6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 5px;">✕ Close</button>
         </div>
     </h3>
     <table class="emoji-log-table" id="emoji-log-table">
@@ -778,12 +685,24 @@
             </tr>
         </thead>
         <tbody id="emoji-log-body">
-            <tr><td colspan="5" style="text-align: center; color: #999; padding: 20px;">Loading......</td></tr>
+            <tr><td colspan="5" style="text-align: center; color: #999; padding: 20px;">Loading...</td></tr>
         </tbody>
     </table>
 </div>
 
 <script>
+    // PDF.js is still loaded but no longer used for rendering
+    const PDFJS_VERSION = '3.11.174';
+   
+    // DYNAMIC QR URL
+    function getCurrentModuleUrl() {
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        const pathname = window.location.pathname;
+        const cleanPath = pathname.split('?')[0].split('#')[0];
+        return protocol + '//' + hostname + cleanPath;
+    }
+   
     const API = 'api.php';
     let username = localStorage.getItem('eduUsername') || '';
     let isAdmin = false;
@@ -793,62 +712,37 @@
     let deleteMode = false;
     let showUsernamesMode = false;
     let showEmojiLogMode = false;
-    
-    // PDF variables
+   
+    // PDF variables (simplified)
     let currentPdfFilename = '';
-    let lastKnownServerFilename = null;
-    let pdfViewerReady = false;
-    
+   
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
-    
-    function showToast(message) {
-        const toast = document.createElement('div');
-        toast.textContent = message;
-        toast.className = 'toast-notification';
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 2000);
-    }
-    
+   
     document.addEventListener('DOMContentLoaded', () => {
-        enhanceButtonsForTouch();
-        
         if (username) {
             document.getElementById('user-badge').textContent = '👤 ' + username;
             logUserLogin(username);
         } else {
             document.getElementById('login-modal').classList.remove('hidden');
         }
-        
+       
         checkAdminStatus();
         loadModulesConfig();
-        
+       
         pollInterval = setInterval(loadModulesConfig, 5000);
         setInterval(updateEmojiStats, 3000);
         setInterval(updateUserCount, 5000);
         setInterval(checkEmojiAnimation, 1000);
-        
+       
         setTimeout(() => {
             const input = document.getElementById('word-input');
             if (input) input.focus();
         }, 500);
     });
-    
-    function enhanceButtonsForTouch() {
-        const buttons = document.querySelectorAll('button');
-        buttons.forEach(btn => {
-            btn.addEventListener('touchstart', (e) => {
-                // Don't prevent default on all buttons, just ensure click works
-                if (!btn.classList.contains('pdf-control-btn')) {
-                    e.preventDefault();
-                    btn.click();
-                }
-            }, { passive: false });
-        });
-    }
-    
+   
     function goHome() { window.location.replace('index.php'); }
-    
+   
     function checkAdminStatus() {
         fetch(API + '?action=check_session')
             .then(r => r.json())
@@ -861,49 +755,47 @@
             })
             .catch(err => console.error(err));
     }
-    
+   
     function loadModulesConfig() {
         fetch(API + '?action=get_modules_config')
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
                     const serverConfig = data.config;
-                    
+                   
                     modulesConfig = {
-                        wordcloud:   serverConfig.wordcloud   !== undefined ? serverConfig.wordcloud   : (modulesConfig.wordcloud   || false),
-                        pdf_viewer:  serverConfig.pdf_viewer  !== undefined ? serverConfig.pdf_viewer  : (modulesConfig.pdf_viewer  || false),
+                        wordcloud: serverConfig.wordcloud !== undefined ? serverConfig.wordcloud : (modulesConfig.wordcloud || false),
+                        pdf_viewer: serverConfig.pdf_viewer !== undefined ? serverConfig.pdf_viewer : (modulesConfig.pdf_viewer || false),
                         emoji_meter: serverConfig.emoji_meter !== undefined ? serverConfig.emoji_meter : (modulesConfig.emoji_meter || false),
-                        qr_link:     serverConfig.qr_link     !== undefined ? serverConfig.qr_link     : (modulesConfig.qr_link     || false)
+                        qr_link: serverConfig.qr_link !== undefined ? serverConfig.qr_link : (modulesConfig.qr_link || false)
                     };
-                    
+                   
                     renderModules();
                     updateAdminButtons();
                 }
             })
             .catch(err => console.error(err));
     }
-    
+   
     function renderModules() {
         const wcModule = document.getElementById('module-wordcloud');
         if (wcModule) {
             wcModule.classList.toggle('hidden', !modulesConfig.wordcloud);
             if (modulesConfig.wordcloud) renderCloud();
         }
-        
+       
         const pdfModule = document.getElementById('module-pdf');
         if (pdfModule) {
             pdfModule.classList.toggle('hidden', !modulesConfig.pdf_viewer);
-            if (modulesConfig.pdf_viewer) {
-                loadPdfIframe();
-            }
+            if (modulesConfig.pdf_viewer) loadPdf();
         }
-        
+       
         const emojiModule = document.getElementById('module-emoji');
         if (emojiModule) {
             emojiModule.classList.toggle('hidden', !modulesConfig.emoji_meter);
             if (modulesConfig.emoji_meter) updateEmojiStats();
         }
-        
+       
         const qrModule = document.getElementById('module-qr');
         if (qrModule) {
             if (modulesConfig.qr_link) {
@@ -914,13 +806,13 @@
             }
         }
     }
-    
+   
     function updateAdminButtons() {
-        const btnWc   = document.getElementById('btn-module-wordcloud');
-        const btnPdf  = document.getElementById('btn-module-pdf');
-        const btnEmoji= document.getElementById('btn-module-emoji');
-        const btnQr   = document.getElementById('btn-module-qr');
-        
+        const btnWc = document.getElementById('btn-module-wordcloud');
+        const btnPdf = document.getElementById('btn-module-pdf');
+        const btnEmoji = document.getElementById('btn-module-emoji');
+        const btnQr = document.getElementById('btn-module-qr');
+       
         if (btnWc) {
             btnWc.classList.toggle('active', modulesConfig.wordcloud);
             btnWc.textContent = (modulesConfig.wordcloud ? '✅ ' : '☁️ ') + 'Word Cloud';
@@ -938,19 +830,19 @@
             btnQr.textContent = (modulesConfig.qr_link ? '✅ ' : '🔗 ') + 'QR Link';
         }
     }
-    
+   
     function toggleAdminPanel() {
         if (!isAdmin) return;
         const statsCard = document.getElementById('emoji-stats-card');
         const btn = document.getElementById('btn-emoji-stats');
-        
+       
         if (statsCard && btn) {
             const isHidden = statsCard.classList.contains('hidden');
-            
+           
             document.querySelectorAll('#admin-panel .admin-card').forEach(card => {
                 card.classList.add('hidden');
             });
-            
+           
             if (isHidden) {
                 statsCard.classList.remove('hidden');
                 document.getElementById('admin-panel').classList.remove('hidden');
@@ -967,10 +859,10 @@
             }
         }
     }
-    
+   
     function updateAdminPanel() {
         if (!isAdmin) return;
-        
+       
         fetch(API + '?action=get_emoji_stats')
             .then(r => r.json())
             .then(data => {
@@ -984,13 +876,13 @@
                     document.getElementById('admin-stat-help').textContent = data.allTime.help || 0;
                 }
             });
-        
+       
         fetch(API + '?action=get_pdf_info')
             .then(r => r.json())
             .then(data => {
                 const pdfName = document.getElementById('admin-pdf-name');
                 const pdfTime = document.getElementById('admin-pdf-time');
-                
+               
                 if (data.success && data.hasPdf) {
                     pdfName.textContent = data.original || 'Lesson.pdf';
                     if (data.uploadTime) {
@@ -1003,15 +895,15 @@
                 }
             });
     }
-    
+   
     function toggleModule(module) {
         if (!isAdmin) return;
-        
+       
         modulesConfig[module] = !modulesConfig[module];
-        
+       
         renderModules();
         updateAdminButtons();
-        
+       
         fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -1033,13 +925,13 @@
             console.error('Config sync error:', err);
         });
     }
-    
+   
     function toggleDeleteMode() {
         if (!isAdmin) return;
         deleteMode = !deleteMode;
         const btn = document.getElementById('btn-delete-mode');
         const container = document.getElementById('cloud-container');
-        
+       
         if (deleteMode) {
             btn.classList.add('active');
             btn.textContent = '✅ Delete ON';
@@ -1050,13 +942,13 @@
             container.classList.remove('admin-mode');
         }
     }
-    
+   
     function toggleUsernames() {
         if (!isAdmin) return;
         showUsernamesMode = !showUsernamesMode;
         const btn = document.getElementById('btn-usernames');
         const container = document.getElementById('cloud-container');
-        
+       
         if (showUsernamesMode) {
             btn.classList.add('active');
             btn.textContent = '👥 Users ON';
@@ -1068,14 +960,14 @@
         }
         renderCloud();
     }
-    
+   
     function toggleEmojiLog() {
         if (!isAdmin) return;
-        
+       
         showEmojiLogMode = !showEmojiLogMode;
         const section = document.getElementById('emoji-log-section');
         const btn = document.getElementById('btn-emoji-log');
-        
+       
         if (showEmojiLogMode) {
             section.classList.remove('hidden');
             section.classList.add('visible');
@@ -1089,7 +981,7 @@
             btn.textContent = '📋 Emoji Log';
         }
     }
-    
+   
     function newLap() {
         if (!isAdmin) return;
         if (confirm('🏁 Start new lap?')) {
@@ -1107,10 +999,10 @@
             });
         }
     }
-    
+   
     function viewPdf() {
         if (!isAdmin) return;
-        
+       
         if (!modulesConfig.pdf_viewer) {
             modulesConfig.pdf_viewer = true;
             fetch(API, {
@@ -1124,13 +1016,13 @@
                 btnPdf.textContent = '✅ PDF';
             }
         }
-        
+       
         const pdfModule = document.getElementById('module-pdf');
         pdfModule.classList.remove('hidden');
-        loadPdfIframe();
+        loadPdf();
         pdfModule.scrollIntoView({ behavior: 'smooth' });
     }
-    
+   
     function uploadPdf() {
         if (!isAdmin) return;
         const input = document.createElement('input');
@@ -1139,23 +1031,26 @@
         input.onchange = () => {
             const file = input.files[0];
             if (!file) return;
-            
+           
+            console.log('Uploading:', file.name, 'Size:', (file.size / 1024 / 1024).toFixed(2) + ' MB');
+           
             const formData = new FormData();
             formData.append('pdf', file);
-            
+           
             fetch(API + '?action=upload_pdf', { method: 'POST', body: formData })
                 .then(async r => {
                     const text = await r.text();
+                    console.log('Server raw response:', text);
                     try {
                         return JSON.parse(text);
                     } catch(e) {
-                        return { success: false, error: 'Server returned invalid JSON' };
+                        return { success: false, error: 'Server returned invalid JSON: ' + text.substring(0, 300) };
                     }
                 })
                 .then(data => {
                     if (data.success) {
                         alert('✅ PDF uploaded successfully!');
-                        
+                       
                         if (!modulesConfig.pdf_viewer) {
                             modulesConfig.pdf_viewer = true;
                             fetch(API, {
@@ -1163,25 +1058,33 @@
                                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                                 body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter + '&qr_link=' + modulesConfig.qr_link
                             });
+                            const btnPdf = document.getElementById('btn-module-pdf');
+                            if (btnPdf) {
+                                btnPdf.classList.add('active');
+                                btnPdf.textContent = '✅ PDF';
+                            }
                         }
-                        
+                       
                         currentPdfFilename = '';
-                        lastKnownServerFilename = null;
-                        
                         viewPdf();
                         updateAdminPanel();
                     } else {
-                        alert('❌ Upload failed: ' + (data.error || 'Unknown error'));
+                        let msg = data.error || data.message || 'Unknown error';
+                        if (file.name.match(/[а-яА-ЯёЁ]/)) {
+                            msg += '\n\n⚠️ The filename contains Russian letters.\nTry renaming the file to English letters only and upload again.';
+                        }
+                        alert('❌ Upload failed:\n\n' + msg);
+                        console.error('Upload failed details:', data);
                     }
                 })
                 .catch(err => {
                     console.error('Network error during upload:', err);
-                    alert('❌ Network error while uploading');
+                    alert('❌ Network error while uploading. Check console (F12) for details.');
                 });
         };
         input.click();
     }
-    
+   
     function deletePdf() {
         if (!isAdmin) return;
         if (confirm('🗑️ Delete PDF?')) {
@@ -1190,6 +1093,7 @@
                 .then(data => {
                     if (data.success) {
                         alert('✅ PDF deleted');
+                        currentPdfFilename = '';
                         const viewer = document.getElementById('pdf-viewer');
                         if (viewer) {
                             viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
@@ -1199,56 +1103,51 @@
                 });
         }
     }
-    
-    function loadPdfIframe() {
+   
+    function loadPdf() {
         fetch(API + '?action=get_pdf_info')
             .then(r => r.json())
             .then(data => {
-                const viewer = document.getElementById('pdf-viewer');
-                if (!viewer) return;
-                
                 if (!data.success || !data.hasPdf) {
+                    const viewer = document.getElementById('pdf-viewer');
                     viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
                     return;
                 }
-                
-                const pdfUrl = 'data/' + data.filename;
-                const timestamp = new Date().getTime();
-                const iframeHtml = `
-                    <iframe class="pdf-iframe" src="${pdfUrl}?t=${timestamp}" 
-                            allow="fullscreen" 
-                            allowfullscreen
-                            style="width:100%;height:100%;border:none;">
-                    </iframe>
-                `;
-                
-                viewer.innerHTML = iframeHtml;
+               
+                if (currentPdfFilename === data.filename) return;
+               
                 currentPdfFilename = data.filename;
-                lastKnownServerFilename = data.filename;
+                const viewer = document.getElementById('pdf-viewer');
+               
+                viewer.innerHTML = `
+                    <embed 
+                        src="data/${currentPdfFilename}#toolbar=1&navpanes=0&scrollbar=1" 
+                        type="application/pdf" 
+                        class="pdf-embed"
+                        id="pdf-embed"
+                    >
+                `;
+            })
+            .catch(err => {
+                console.error('PDF info error:', err);
+                const viewer = document.getElementById('pdf-viewer');
+                viewer.innerHTML = `<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p></div></div>`;
             });
     }
-    
+   
     // DYNAMIC QR GENERATION
-    function getCurrentModuleUrl() {
-        const protocol = window.location.protocol;
-        const hostname = window.location.hostname;
-        const pathname = window.location.pathname;
-        const cleanPath = pathname.split('?')[0].split('#')[0];
-        return protocol + '//' + hostname + cleanPath;
-    }
-    
     function generateQR() {
         const container = document.getElementById('qr-code');
         const linkDisplay = document.getElementById('qr-link-display');
         if (!container) return;
-        
+       
         const dynamicUrl = getCurrentModuleUrl();
         const displayUrl = dynamicUrl.replace(/^https?:\/\//, '');
         linkDisplay.textContent = displayUrl;
         linkDisplay.href = dynamicUrl;
-        
+       
         container.innerHTML = '';
-        
+       
         try {
             new QRCode(container, {
                 text: dynamicUrl,
@@ -1261,57 +1160,57 @@
             container.innerHTML = '<p style="color: #e74c3c;">Error generating QR</p>';
         }
     }
-    
+   
     function renderCloud() {
         fetch(API + '?action=get_words')
             .then(r => r.json())
             .then(data => {
                 const container = document.getElementById('cloud-container');
                 if (!container) return;
-                
+               
                 if (!data || data.length === 0) {
                     container.innerHTML = '<p style="color: #999; text-align: center; padding: 40px; font-size: 22px;">No words yet. Be first! 👆</p>';
                     return;
                 }
-                
+               
                 container.innerHTML = '';
                 data.slice(0, 80).forEach((item, index) => {
                     const wrapper = document.createElement('div');
                     wrapper.className = 'cloud-word-wrapper';
                     wrapper.style.animationDelay = (index * 0.03) + 's';
-                    
-                    const text  = item.display || item.word;
+                   
+                    const text = item.display || item.word;
                     const count = item.count || 1;
                     const users = item.users || [];
-                    
+                   
                     let hash = 0;
                     for (let i = 0; i < text.length; i++) hash = text.charCodeAt(i) + ((hash << 5) - hash);
                     const color = COLOR_PALETTE[Math.abs(hash) % COLOR_PALETTE.length];
-                    
+                   
                     const span = document.createElement('span');
                     span.className = 'cloud-word';
                     span.textContent = text;
                     span.style.color = color;
                     span.style.borderColor = color;
-                    
+                   
                     const deleteBtn = document.createElement('button');
                     deleteBtn.className = 'delete-btn';
                     deleteBtn.textContent = '×';
                     deleteBtn.onclick = (e) => { e.stopPropagation(); deleteWord(item.word); };
-                    
+                   
                     const badge = document.createElement('span');
                     badge.className = 'count-badge';
                     badge.textContent = count;
-                    
+                   
                     const userIndicator = document.createElement('div');
                     userIndicator.className = 'user-indicator';
                     userIndicator.textContent = users.length + ' user' + (users.length > 1 ? 's' : '');
-                    
+                   
                     const tooltip = document.createElement('div');
                     tooltip.className = 'username-tooltip';
                     let uniqueUsers = [...new Set(users)];
                     tooltip.innerHTML = '<div class="names">' + uniqueUsers.map(u => '<span>' + escapeHtml(u) + '</span>').join('') + '</div>';
-                    
+                   
                     wrapper.appendChild(deleteBtn);
                     wrapper.appendChild(span);
                     wrapper.appendChild(badge);
@@ -1319,21 +1218,21 @@
                     wrapper.appendChild(tooltip);
                     container.appendChild(wrapper);
                 });
-                
+               
                 if (deleteMode) container.classList.add('admin-mode');
                 if (showUsernamesMode) container.classList.add('show-usernames');
             });
     }
-    
+   
     function submitWord() {
         const input = document.getElementById('word-input');
         const word = input ? input.value.trim() : '';
         if (!word) return;
-        
+       
         const btn = event.target;
         btn.textContent = 'Sending...';
         btn.disabled = true;
-        
+       
         fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -1348,7 +1247,7 @@
             btn.disabled = false;
         });
     }
-    
+   
     function deleteWord(word) {
         if (!isAdmin || !confirm('Delete "' + word + '"?')) return;
         fetch(API, {
@@ -1357,7 +1256,7 @@
             body: 'action=delete_word&word=' + encodeURIComponent(word)
         }).then(() => renderCloud());
     }
-    
+   
     function resetWords() {
         if (!isAdmin || !confirm('⚠️ Reset ALL words?')) return;
         fetch(API, {
@@ -1369,7 +1268,7 @@
             renderCloud();
         });
     }
-    
+   
     function resetEmoji(type) {
         if (!isAdmin || !confirm('Reset emoji data?')) return;
         fetch(API, {
@@ -1381,21 +1280,21 @@
             updateAdminPanel();
         });
     }
-    
+   
     function deleteEmojiLog(type, index = -1) {
         if (!isAdmin) return;
         if (type === 'all' && !confirm('⚠️ Delete ALL?')) return;
-        
+       
         fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: 'action=delete_emoji_log&type=' + type + (index >= 0 ? '&index=' + index : '')
         }).then(() => refreshEmojiLog());
     }
-    
+   
     function refreshEmojiLog() {
         if (!showEmojiLogMode) return;
-        
+       
         fetch(API + '?action=get_emoji_log')
             .then(r => r.json())
             .then(data => {
@@ -1404,7 +1303,7 @@
                     tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #999; padding: 20px;">No votes yet</td></tr>';
                     return;
                 }
-                
+               
                 tbody.innerHTML = data.log.map((entry, index) => {
                     const date = new Date(entry.time * 1000);
                     return '<tr>' +
@@ -1417,47 +1316,47 @@
                 }).join('');
             });
     }
-    
+   
     function submitEmoji(emoji) {
         const now = Date.now();
         if (now - lastVoteTime < 60000) {
-            showToast('Please wait ' + Math.ceil((60000 - (now - lastVoteTime)) / 1000) + ' seconds');
+            alert('Wait ' + Math.ceil((60000 - (now - lastVoteTime)) / 1000) + 's');
             return;
         }
-        
+       
         const btn = document.getElementById('btn-emoji-' + emoji);
         if (!btn) return;
-        
+       
         btn.classList.add('disabled');
         btn.disabled = true;
         lastVoteTime = now;
-        
+       
         fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: 'action=emoji_vote&emoji=' + emoji + '&username=' + encodeURIComponent(username)
         }).then(() => updateEmojiStats());
-        
+       
         setTimeout(() => {
             btn.classList.remove('disabled');
             btn.disabled = false;
         }, 60000);
     }
-    
+   
     function updateEmojiStats() {
         fetch(API + '?action=get_emoji_stats')
             .then(r => r.json())
             .then(data => {
                 if (!data.success) return;
                 const lap = data.currentLap;
-                document.getElementById('stat-done').textContent   = lap.done   || 0;
+                document.getElementById('stat-done').textContent = lap.done || 0;
                 document.getElementById('stat-unsure').textContent = lap.unsure || 0;
-                document.getElementById('stat-pain').textContent   = lap.pain   || 0;
-                document.getElementById('stat-happy').textContent  = lap.happy  || 0;
-                document.getElementById('stat-help').textContent   = lap.help   || 0;
+                document.getElementById('stat-pain').textContent = lap.pain || 0;
+                document.getElementById('stat-happy').textContent = lap.happy || 0;
+                document.getElementById('stat-help').textContent = lap.help || 0;
             });
     }
-    
+   
     function updateUserCount() {
         fetch(API + '?action=get_user_count')
             .then(r => r.json())
@@ -1468,7 +1367,7 @@
                 }
             });
     }
-    
+   
     function checkEmojiAnimation() {
         fetch(API + '?action=get_emoji_animation')
             .then(r => r.json())
@@ -1476,11 +1375,11 @@
                 if (data.emoji) showEmojiAnimation(data.emoji);
             });
     }
-    
+   
     function showEmojiAnimation(emoji) {
         const overlay = document.getElementById('emoji-overlay');
         const symbol = EMOJI_MAP[emoji] || emoji;
-        
+       
         for (let i = 0; i < 5; i++) {
             setTimeout(() => {
                 const el = document.createElement('div');
@@ -1491,11 +1390,11 @@
                 setTimeout(() => el.remove(), 3000);
             }, i * 200);
         }
-        
+       
         overlay.classList.add('active');
         setTimeout(() => overlay.classList.remove('active'), 3500);
     }
-    
+   
     function logUserLogin(user) {
         fetch(API, {
             method: 'POST',
@@ -1503,7 +1402,7 @@
             body: 'action=log_user_login&username=' + encodeURIComponent(user)
         }).then(() => updateUserCount());
     }
-    
+   
     function saveUsername() {
         const input = document.getElementById('username-input');
         if (input && input.value.trim()) {
@@ -1514,18 +1413,18 @@
             logUserLogin(username);
         }
     }
-    
+   
     function showLogin() {
         document.getElementById('login-modal').classList.remove('hidden');
         document.getElementById('username-input').value = '';
     }
-    
+   
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
-    
+   
     document.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             const modal = document.getElementById('login-modal');
@@ -1534,6 +1433,5 @@
         }
     });
 </script>
-
 </body>
 </html>
