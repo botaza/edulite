@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - QR LINK CORRECTED -->
+<!-- File 11 of 8: modules.php - DYNAMIC QR LINK -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -709,8 +709,8 @@
         <div id="qr-container">
             <div id="qr-code"></div>
         </div>
-        <a href="http://testingdomainru.ru/edulite/modules.php" class="qr-link" target="_blank">
-            testingdomainru.ru/edulite/modules.php
+        <a href="#" class="qr-link" id="qr-link-display" target="_blank">
+            Loading...
         </a>
     </div>
 </div>
@@ -745,8 +745,15 @@
     // PDF.js setup
     const PDFJS_VERSION = '3.11.174';
     
-    // CORRECTED QR URL - NO TYPO
-    const QR_URL = 'http://testingdomainru.ru/edulite/modules.php';
+    // DYNAMIC QR URL - Generated from current page location
+    function getCurrentModuleUrl() {
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        const pathname = window.location.pathname;
+        // Remove query params and hash, keep only the base module path
+        const cleanPath = pathname.split('?')[0].split('#')[0];
+        return protocol + '//' + hostname + cleanPath;
+    }
     
     function initPDFJS() {
         return new Promise((resolve) => {
@@ -1324,19 +1331,30 @@
         });
     }
     
+    // DYNAMIC QR GENERATION - Creates unique QR for current module instance
     function generateQR() {
         const container = document.getElementById('qr-code');
+        const linkDisplay = document.getElementById('qr-link-display');
         if (!container) return;
+        
+        // Generate dynamic URL from current page location
+        const dynamicUrl = getCurrentModuleUrl();
+        
+        // Update the clickable link text
+        const displayUrl = dynamicUrl.replace(/^https?:\/\//, '');
+        linkDisplay.textContent = displayUrl;
+        linkDisplay.href = dynamicUrl;
         
         container.innerHTML = '';
         
         try {
             new QRCode(container, {
-                text: QR_URL,
+                text: dynamicUrl,
                 width: 300,
                 height: 300,
                 correctLevel: QRCode.CorrectLevel.H
             });
+            console.log('QR generated for:', dynamicUrl);
         } catch(e) {
             console.error('QR generation error:', e);
             container.innerHTML = '<p style="color: #e74c3c;">Error generating QR</p>';
