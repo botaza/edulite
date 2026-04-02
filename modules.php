@@ -296,8 +296,8 @@
         }
        
         /* INFO TEXT MODULE */
-        .info-text-module {
-            background: rgba(255,255,255,0.95); 
+        .module-section.info-text-section {
+            background: rgba(255,255,255,0.95);
             border-radius: 15px;
             padding: 25px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
@@ -305,12 +305,6 @@
             font-size: 17px;
             line-height: 1.6;
             color: #2c3e50;
-        }
-        .info-text-module h2 {
-            color: #667eea; 
-            margin: 0 0 15px 0; 
-            font-size: 22px; 
-            text-align: center;
         }
         .info-text-content {
             white-space: pre-wrap;
@@ -560,10 +554,12 @@
                 <button class="btn-danger" onclick="deletePdf()">🗑️ Delete PDF</button>
             </div>
            
+            <!-- INFO TEXT EDITING CARD - Now clearly visible -->
             <div class="admin-card">
                 <h4>ℹ️ Info Text Management</h4>
-                <textarea id="admin-info-text" rows="6" style="width:100%; padding:12px; border:2px solid #667eea; border-radius:8px; font-size:15px; resize:vertical; margin-bottom:10px;"></textarea>
-                <button class="btn-success" onclick="saveInfoText()">💾 Save Info Text</button>
+                <p style="font-size:13px; color:#666; margin-bottom:8px;">Edit the text that appears at the top when the Info module is enabled:</p>
+                <textarea id="admin-info-text" rows="8" style="width:100%; padding:12px; border:2px solid #667eea; border-radius:8px; font-size:15px; resize:vertical; margin-bottom:12px; font-family:inherit;"></textarea>
+                <button class="btn-success" onclick="saveInfoText()" style="width:100%; padding:12px;">💾 Save Info Text</button>
             </div>
            
             <div class="admin-card">
@@ -607,8 +603,8 @@
         </div>
     </div>
    
-    <!-- NEW INFO TEXT MODULE - Appears at the top when enabled -->
-    <div class="module-section hidden" id="module-info-text">
+    <!-- INFO TEXT MODULE - Appears at the very top when enabled -->
+    <div class="module-section hidden info-text-section" id="module-info-text">
         <h2>ℹ️ Information</h2>
         <div class="info-text-content" id="info-text-content"></div>
     </div>
@@ -803,11 +799,11 @@
                     const serverConfig = data.config;
                    
                     modulesConfig = {
-                        wordcloud: serverConfig.wordcloud !== undefined ? serverConfig.wordcloud : (modulesConfig.wordcloud || false),
-                        pdf_viewer: serverConfig.pdf_viewer !== undefined ? serverConfig.pdf_viewer : (modulesConfig.pdf_viewer || false),
-                        emoji_meter: serverConfig.emoji_meter !== undefined ? serverConfig.emoji_meter : (modulesConfig.emoji_meter || false),
-                        qr_link: serverConfig.qr_link !== undefined ? serverConfig.qr_link : (modulesConfig.qr_link || false),
-                        info_text: serverConfig.info_text !== undefined ? serverConfig.info_text : (modulesConfig.info_text || false)
+                        wordcloud: serverConfig.wordcloud !== undefined ? serverConfig.wordcloud : false,
+                        pdf_viewer: serverConfig.pdf_viewer !== undefined ? serverConfig.pdf_viewer : false,
+                        emoji_meter: serverConfig.emoji_meter !== undefined ? serverConfig.emoji_meter : true,
+                        qr_link: serverConfig.qr_link !== undefined ? serverConfig.qr_link : false,
+                        info_text: serverConfig.info_text !== undefined ? serverConfig.info_text : false
                     };
                    
                     loadInfoText();
@@ -833,7 +829,7 @@
     function saveInfoText() {
         if (!isAdmin) return;
         const text = document.getElementById('admin-info-text').value.trim();
-        
+       
         fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -842,18 +838,19 @@
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                alert('✅ Info text saved!');
+                alert('✅ Info text saved successfully!');
                 currentInfoText = text;
                 const contentEl = document.getElementById('info-text-content');
                 if (contentEl) contentEl.innerHTML = text.replace(/\n/g, '<br>');
             } else {
                 alert('❌ Failed to save info text');
             }
-        });
+        })
+        .catch(() => alert('❌ Network error while saving'));
     }
    
     function renderModules() {
-        // Info Text - always first when enabled
+        // Info Text module - appears at the very top
         const infoModule = document.getElementById('module-info-text');
         if (infoModule) {
             infoModule.classList.toggle('hidden', !modulesConfig.info_text);
@@ -879,12 +876,8 @@
        
         const qrModule = document.getElementById('module-qr');
         if (qrModule) {
-            if (modulesConfig.qr_link) {
-                qrModule.classList.remove('hidden');
-                generateQR();
-            } else {
-                qrModule.classList.add('hidden');
-            }
+            qrModule.classList.toggle('hidden', !modulesConfig.qr_link);
+            if (modulesConfig.qr_link) generateQR();
         }
     }
    
@@ -913,11 +906,7 @@
         fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + 
-                  '&pdf_viewer=' + modulesConfig.pdf_viewer + 
-                  '&emoji_meter=' + modulesConfig.emoji_meter + 
-                  '&qr_link=' + modulesConfig.qr_link +
-                  '&info_text=' + modulesConfig.info_text
+            body: `action=update_modules_config&wordcloud=${modulesConfig.wordcloud}&pdf_viewer=${modulesConfig.pdf_viewer}&emoji_meter=${modulesConfig.emoji_meter}&qr_link=${modulesConfig.qr_link}&info_text=${modulesConfig.info_text}`
         })
         .then(r => r.json())
         .then(data => {
@@ -936,7 +925,6 @@
         });
     }
    
-    // ==================== PDF FUNCTIONS ====================
     async function loadPdf() {
         const viewer = document.getElementById('pdf-viewer');
         
@@ -963,16 +951,13 @@
                     for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
                         const page = await pdfDoc.getPage(pageNum);
                         const scale = 1.5;
-                        const viewport = page.getViewport({ scale: scale });
-
+                        const viewport = page.getViewport({ scale });
                         const canvas = document.createElement('canvas');
                         canvas.className = 'pdf-page-canvas';
                         canvas.height = viewport.height;
                         canvas.width = viewport.width;
-
                         const context = canvas.getContext('2d');
-                        await page.render({ canvasContext: context, viewport: viewport }).promise;
-
+                        await page.render({ canvasContext: context, viewport }).promise;
                         container.appendChild(canvas);
                     }
                 } catch (err) {
@@ -980,13 +965,11 @@
                     viewer.innerHTML = `<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p><p style="font-size:14px;">${err.message || 'Unknown error'}</p></div></div>`;
                 }
             })
-            .catch(err => {
-                console.error('PDF info error:', err);
+            .catch(() => {
                 viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p></div></div>';
             });
     }
    
-    // ==================== OTHER FUNCTIONS (unchanged) ====================
     function toggleAdminPanel() {
         if (!isAdmin) return;
         const statsCard = document.getElementById('emoji-stats-card');
@@ -1003,8 +986,8 @@
                 document.getElementById('admin-panel').classList.add('visible');
                 btn.classList.add('active');
                 btn.textContent = '📊 Stats ON';
-                updateAdminPanel();
-                // Load current info text into textarea
+                
+                // Load current info text into the textarea
                 document.getElementById('admin-info-text').value = currentInfoText;
             } else {
                 statsCard.classList.add('hidden');
@@ -1016,6 +999,7 @@
         }
     }
    
+    // ==================== Remaining functions (Word Cloud, Emoji, QR, etc.) ====================
     function toggleDeleteMode() {
         if (!isAdmin) return;
         deleteMode = !deleteMode;
@@ -1140,7 +1124,7 @@
                         alert('❌ Upload failed: ' + (data.error || 'Unknown error'));
                     }
                 })
-                .catch(err => alert('❌ Network error'));
+                .catch(() => alert('❌ Network error'));
         };
         input.click();
     }
