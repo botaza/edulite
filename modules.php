@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - SCALE PERSISTS -->
+<!-- File 11 of 8: modules.php - SCALE PERSISTS + NO BLINK -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -789,11 +789,11 @@
     let scrollTimeout = null;
     let pdfIsLoaded = false;
     
-    // PINCH ZOOM variables - FIXED
+    // PINCH ZOOM variables
     let initialPinchDistance = 0;
     let baseScale = 1.0;
     let isPinching = false;
-    let currentPinchScale = 1.0; // Track the current visual scale during pinch
+    let currentPinchScale = 1.0;
     
     // LIVE USER COUNT variables
     const USER_ACTIVITY_TIMEOUT = 60000;
@@ -816,7 +816,26 @@
         checkAdminStatus();
         loadModulesConfig();
         
-        pollInterval = setInterval(loadModulesConfig, 5000);
+        // Poll for module config changes only (not PDF reload)
+        pollInterval = setInterval(() => {
+            fetch(API + '?action=get_modules_config')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        // Only update config, don't reload PDF
+                        const serverConfig = data.config;
+                        modulesConfig = {
+                            wordcloud: serverConfig.wordcloud !== undefined ? serverConfig.wordcloud : (modulesConfig.wordcloud || false),
+                            pdf_viewer: serverConfig.pdf_viewer !== undefined ? serverConfig.pdf_viewer : (modulesConfig.pdf_viewer || false),
+                            emoji_meter: serverConfig.emoji_meter !== undefined ? serverConfig.emoji_meter : (modulesConfig.emoji_meter || false),
+                            qr_link: serverConfig.qr_link !== undefined ? serverConfig.qr_link : (modulesConfig.qr_link || false)
+                        };
+                        updateAdminButtons();
+                    }
+                })
+                .catch(err => console.error(err));
+        }, 5000);
+        
         setInterval(updateEmojiStats, 3000);
         setInterval(updateUserCount, 2000);
         setInterval(checkEmojiAnimation, 1000);
@@ -881,7 +900,7 @@
         return count;
     }
     
-    // ============ PINCH ZOOM - FIXED TO PERSIST ============
+    // ============ PINCH ZOOM - WORKING ============
     
     function setupPinchZoom() {
         const viewer = document.getElementById('pdf-viewer');
@@ -946,7 +965,7 @@
             container.style.transform = 'scale(1)';
         }
         
-        // Calculate final committed scale using the last known pinch scale
+        // Calculate final committed scale using the tracked pinch scale
         const finalScale = baseScale * currentPinchScale;
         const clampedScale = Math.max(0.5, Math.min(3.0, finalScale));
         
@@ -1012,8 +1031,13 @@
         
         const pdfModule = document.getElementById('module-pdf');
         if (pdfModule) {
+            const wasHidden = pdfModule.classList.contains('hidden');
             pdfModule.classList.toggle('hidden', !modulesConfig.pdf_viewer);
-            if (modulesConfig.pdf_viewer) loadPdf();
+            
+            // Only load PDF if module just became visible
+            if (modulesConfig.pdf_viewer && wasHidden) {
+                loadPdf();
+            }
         }
         
         const emojiModule = document.getElementById('module-emoji');
@@ -1345,6 +1369,12 @@
     }
     
     function loadPdf() {
+        // Don't reload if already loaded with same file
+        if (pdfIsLoaded && pdfDoc) {
+            console.log('PDF already loaded, skipping reload');
+            return;
+        }
+        
         fetch(API + '?action=get_pdf_info')
             .then(r => r.json())
             .then(data => {
@@ -1354,8 +1384,6 @@
                     document.getElementById('page-indicator').classList.add('hidden');
                     return;
                 }
-                
-                if (pdfIsLoaded && data.filename === currentPdfFilename) return;
                 
                 currentPdfFilename = data.filename;
                 const viewer = document.getElementById('pdf-viewer');
