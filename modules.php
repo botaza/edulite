@@ -9,7 +9,6 @@
     <title>Modules - EduLite</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="js/qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
         body {
             padding: 0; margin: 0;
@@ -317,15 +316,20 @@
             to { opacity: 1; transform: scale(1); }
         }
         
-        /* PDF Viewer Styles - Fixed for pinch zoom */
+        /* PDF Viewer Styles - Using iframe for native pinch zoom */
         .pdf-viewer-container {
             height: 70vh;
             background: #525659;
             border-radius: 10px;
-            overflow-y: auto;
+            overflow: hidden;
             position: relative;
-            -webkit-overflow-scrolling: touch;
-            touch-action: pan-y pinch-zoom;
+        }
+        
+        .pdf-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #525659;
         }
         
         .pdf-controls {
@@ -338,7 +342,6 @@
             position: sticky;
             top: 0;
             z-index: 10;
-            touch-action: manipulation;
         }
         
         .pdf-controls button {
@@ -361,58 +364,10 @@
             text-align: center;
         }
         
-        .pdf-pages-container {
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0;
-            touch-action: pan-y pinch-zoom;
-        }
-        
-        .pdf-page-canvas {
-            display: block;
-            margin: 0 auto 20px auto;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            max-width: 100%;
-            height: auto;
-            touch-action: pan-y pinch-zoom;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        
-        .page-number-indicator {
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 12px;
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 100;
-        }
-        
         .no-pdf {
             display: flex; align-items: center; justify-content: center;
             height: 100%; color: #999; font-size: 18px;
             text-align: center; padding: 40px;
-        }
-        
-        /* PDF Scrollbar Styling */
-        .pdf-viewer-container::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        
-        .pdf-viewer-container::-webkit-scrollbar-track {
-            background: #333;
-            border-radius: 4px;
-        }
-        
-        .pdf-viewer-container::-webkit-scrollbar-thumb {
-            background: #667eea;
-            border-radius: 4px;
         }
         
         .emoji-meter-section {
@@ -722,9 +677,9 @@
         </div>
     </div>
     
-    <!-- PDF Viewer Module -->
+    <!-- PDF Viewer Module - Using iframe for native pinch zoom -->
     <div class="module-section hidden" id="module-pdf">
-        <h2>📄 PDF Viewer (Pinch to Zoom)</h2>
+        <h2>📄 PDF Viewer (Pinch to Zoom Supported)</h2>
         <div class="pdf-viewer-container" id="pdf-viewer">
             <div class="no-pdf">
                 <div>
@@ -732,9 +687,6 @@
                     <p>No lesson material uploaded yet</p>
                 </div>
             </div>
-        </div>
-        <div class="page-number-indicator hidden" id="page-indicator">
-            Page <span id="current-page">0</span> of <span id="total-pages">0</span>
         </div>
     </div>
     
@@ -826,36 +778,12 @@
             </tr>
         </thead>
         <tbody id="emoji-log-body">
-            <tr><td colspan="5" style="text-align: center; color: #999; padding: 20px;">Loading...</td></tr>
+            <tr><td colspan="5" style="text-align: center; color: #999; padding: 20px;">Loading......</td></tr>
         </tbody>
     </table>
 </div>
 
 <script>
-    // PDF.js setup
-    const PDFJS_VERSION = '3.11.174';
-    
-    // DYNAMIC QR URL - Generated from current page location
-    function getCurrentModuleUrl() {
-        const protocol = window.location.protocol;
-        const hostname = window.location.hostname;
-        const pathname = window.location.pathname;
-        const cleanPath = pathname.split('?')[0].split('#')[0];
-        return protocol + '//' + hostname + cleanPath;
-    }
-    
-    function initPDFJS() {
-        return new Promise((resolve) => {
-            if (typeof pdfjsLib !== 'undefined') {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
-                console.log('PDF.js worker initialized');
-                resolve();
-            } else {
-                setTimeout(() => initPDFJS().then(resolve), 100);
-            }
-        });
-    }
-    
     const API = 'api.php';
     let username = localStorage.getItem('eduUsername') || '';
     let isAdmin = false;
@@ -866,24 +794,10 @@
     let showUsernamesMode = false;
     let showEmojiLogMode = false;
     
-    // PDF.js variables
-    let pdfDoc = null;
-    let scale = 1.0;
+    // PDF variables
     let currentPdfFilename = '';
-    let totalPages = 0;
-    let renderedPages = {};
-    let isScrolling = false;
-    let scrollTimeout = null;
-    let pdfIsLoaded = false;
-
-    // Track the last known server-side PDF filename so the poll can detect changes
-    // without touching the viewer if nothing changed.
     let lastKnownServerFilename = null;
-    
-    // Touch pinch zoom variables
-    let initialPinchDistance = 0;
-    let initialScale = 1.0;
-    let initialScrollTop = 0;
+    let pdfViewerReady = false;
     
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
@@ -897,7 +811,6 @@
     }
     
     document.addEventListener('DOMContentLoaded', () => {
-        initPDFJS().then(() => console.log('PDF.js ready'));
         enhanceButtonsForTouch();
         
         if (username) {
@@ -915,9 +828,6 @@
         setInterval(updateUserCount, 5000);
         setInterval(checkEmojiAnimation, 1000);
         
-        window.addEventListener('beforeunload', savePdfPosition);
-        window.addEventListener('pagehide', savePdfPosition);
-        
         setTimeout(() => {
             const input = document.getElementById('word-input');
             if (input) input.focus();
@@ -928,108 +838,13 @@
         const buttons = document.querySelectorAll('button');
         buttons.forEach(btn => {
             btn.addEventListener('touchstart', (e) => {
-                // Prevent double-tap zoom on buttons
-                e.preventDefault();
-                btn.click();
+                // Don't prevent default on all buttons, just ensure click works
+                if (!btn.classList.contains('pdf-control-btn')) {
+                    e.preventDefault();
+                    btn.click();
+                }
             }, { passive: false });
         });
-    }
-    
-    function setupTouchEvents() {
-        const pagesContainer = document.getElementById('pdf-pages');
-        const viewer = document.getElementById('pdf-viewer');
-        
-        if (!pagesContainer || !viewer) return;
-        
-        // Remove any existing listeners to avoid duplicates
-        pagesContainer.removeEventListener('touchstart', handlePinchStart);
-        pagesContainer.removeEventListener('touchmove', handlePinchMove);
-        pagesContainer.removeEventListener('touchend', handlePinchEnd);
-        
-        // Add new listeners to the pages container (where the actual content is)
-        pagesContainer.addEventListener('touchstart', handlePinchStart, { passive: false });
-        pagesContainer.addEventListener('touchmove', handlePinchMove, { passive: false });
-        pagesContainer.addEventListener('touchend', handlePinchEnd);
-        
-        // Also allow zoom on the viewer container
-        viewer.removeEventListener('touchstart', handlePinchStart);
-        viewer.removeEventListener('touchmove', handlePinchMove);
-        viewer.addEventListener('touchstart', handlePinchStart, { passive: false });
-        viewer.addEventListener('touchmove', handlePinchMove, { passive: false });
-    }
-    
-    function handlePinchStart(e) {
-        if (e.touches.length === 2) {
-            e.preventDefault();
-            initialPinchDistance = getPinchDistance(e.touches);
-            initialScale = scale;
-            // Store current scroll position ratio
-            const viewer = document.getElementById('pdf-viewer');
-            if (viewer) {
-                initialScrollTop = viewer.scrollTop;
-            }
-        }
-    }
-    
-    function handlePinchMove(e) {
-        if (e.touches.length === 2) {
-            e.preventDefault();
-            const currentDistance = getPinchDistance(e.touches);
-            if (initialPinchDistance > 0) {
-                let scaleFactor = currentDistance / initialPinchDistance;
-                // Limit zoom range
-                let newScale = initialScale * scaleFactor;
-                newScale = Math.min(Math.max(newScale, 0.5), 4.0);
-                
-                if (Math.abs(newScale - scale) > 0.02) {
-                    // Store scroll ratio before zoom
-                    const viewer = document.getElementById('pdf-viewer');
-                    let scrollRatio = 0.5;
-                    if (viewer && viewer.scrollHeight > viewer.clientHeight) {
-                        scrollRatio = viewer.scrollTop / (viewer.scrollHeight - viewer.clientHeight);
-                    }
-                    
-                    scale = newScale;
-                    
-                    // Update zoom label
-                    const zoomLabel = document.getElementById('zoom-label');
-                    if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
-                    
-                    // Re-render with new scale
-                    const container = document.getElementById('pdf-pages');
-                    if (container) {
-                        const oldContainerHeight = container.scrollHeight;
-                        container.innerHTML = '';
-                        
-                        renderAllPages().then(() => {
-                            if (viewer && oldContainerHeight > 0) {
-                                // Restore scroll position ratio
-                                const newScrollHeight = viewer.scrollHeight - viewer.clientHeight;
-                                viewer.scrollTop = scrollRatio * newScrollHeight;
-                            }
-                            savePdfPosition();
-                        });
-                    }
-                    
-                    // Haptic feedback on zoom
-                    if (window.navigator && window.navigator.vibrate) {
-                        window.navigator.vibrate(20);
-                    }
-                }
-            }
-        }
-    }
-    
-    function handlePinchEnd(e) {
-        initialPinchDistance = 0;
-        savePdfPosition();
-    }
-    
-    function getPinchDistance(touches) {
-        if (touches.length < 2) return 0;
-        const dx = touches[0].clientX - touches[1].clientX;
-        const dy = touches[0].clientY - touches[1].clientY;
-        return Math.sqrt(dx * dx + dy * dy);
     }
     
     function goHome() { window.location.replace('index.php'); }
@@ -1079,11 +894,7 @@
         if (pdfModule) {
             pdfModule.classList.toggle('hidden', !modulesConfig.pdf_viewer);
             if (modulesConfig.pdf_viewer) {
-                if (!pdfIsLoaded) {
-                    loadPdf();
-                } else {
-                    checkPdfChanged();
-                }
+                loadPdfIframe();
             }
         }
         
@@ -1102,34 +913,6 @@
                 qrModule.classList.add('hidden');
             }
         }
-    }
-
-    function checkPdfChanged() {
-        fetch(API + '?action=get_pdf_info')
-            .then(r => r.json())
-            .then(data => {
-                if (!data.success || !data.hasPdf) {
-                    if (pdfIsLoaded) {
-                        pdfIsLoaded = false;
-                        currentPdfFilename = '';
-                        lastKnownServerFilename = null;
-                        pdfDoc = null;
-                        const viewer = document.getElementById('pdf-viewer');
-                        if (viewer) {
-                            viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
-                        }
-                        const indicator = document.getElementById('page-indicator');
-                        if (indicator) indicator.classList.add('hidden');
-                    }
-                    return;
-                }
-
-                if (data.filename === lastKnownServerFilename) return;
-
-                pdfIsLoaded = false;
-                loadPdf();
-            })
-            .catch(err => console.error('checkPdfChanged error:', err));
     }
     
     function updateAdminButtons() {
@@ -1344,8 +1127,7 @@
         
         const pdfModule = document.getElementById('module-pdf');
         pdfModule.classList.remove('hidden');
-        pdfIsLoaded = false;
-        loadPdf();
+        loadPdfIframe();
         pdfModule.scrollIntoView({ behavior: 'smooth' });
     }
     
@@ -1358,19 +1140,16 @@
             const file = input.files[0];
             if (!file) return;
             
-            console.log('Uploading:', file.name, 'Size:', (file.size / 1024 / 1024).toFixed(2) + ' MB');
-            
             const formData = new FormData();
             formData.append('pdf', file);
             
             fetch(API + '?action=upload_pdf', { method: 'POST', body: formData })
                 .then(async r => {
                     const text = await r.text();
-                    console.log('Server raw response:', text);
                     try {
                         return JSON.parse(text);
                     } catch(e) {
-                        return { success: false, error: 'Server returned invalid JSON: ' + text.substring(0, 300) };
+                        return { success: false, error: 'Server returned invalid JSON' };
                     }
                 })
                 .then(data => {
@@ -1384,35 +1163,20 @@
                                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                                 body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter + '&qr_link=' + modulesConfig.qr_link
                             });
-                            const btnPdf = document.getElementById('btn-module-pdf');
-                            if (btnPdf) {
-                                btnPdf.classList.add('active');
-                                btnPdf.textContent = '✅ PDF';
-                            }
                         }
                         
-                        if (currentPdfFilename) {
-                            localStorage.removeItem('pdfScroll_' + currentPdfFilename);
-                            localStorage.removeItem('pdfScale_' + currentPdfFilename);
-                        }
-                        pdfIsLoaded = false;
                         currentPdfFilename = '';
                         lastKnownServerFilename = null;
                         
                         viewPdf();
                         updateAdminPanel();
                     } else {
-                        let msg = data.error || data.message || 'Unknown error';
-                        if (file.name.match(/[а-яА-ЯёЁ]/)) {
-                            msg += '\n\n⚠️ The filename contains Russian letters.\nTry renaming the file to English letters only and upload again.';
-                        }
-                        alert('❌ Upload failed:\n\n' + msg);
-                        console.error('Upload failed details:', data);
+                        alert('❌ Upload failed: ' + (data.error || 'Unknown error'));
                     }
                 })
                 .catch(err => {
                     console.error('Network error during upload:', err);
-                    alert('❌ Network error while uploading. Check console (F12) for details.');
+                    alert('❌ Network error while uploading');
                 });
         };
         input.click();
@@ -1426,231 +1190,59 @@
                 .then(data => {
                     if (data.success) {
                         alert('✅ PDF deleted');
-                        if (currentPdfFilename) {
-                            localStorage.removeItem('pdfScroll_' + currentPdfFilename);
-                            localStorage.removeItem('pdfScale_' + currentPdfFilename);
-                        }
-                        pdfIsLoaded = false;
-                        currentPdfFilename = '';
-                        lastKnownServerFilename = null;
-                        pdfDoc = null;
                         const viewer = document.getElementById('pdf-viewer');
                         if (viewer) {
                             viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
                         }
-                        const indicator = document.getElementById('page-indicator');
-                        if (indicator) indicator.classList.add('hidden');
                         updateAdminPanel();
                     }
                 });
         }
     }
     
-    function loadPdf() {
+    function loadPdfIframe() {
         fetch(API + '?action=get_pdf_info')
             .then(r => r.json())
             .then(data => {
+                const viewer = document.getElementById('pdf-viewer');
+                if (!viewer) return;
+                
                 if (!data.success || !data.hasPdf) {
-                    const viewer = document.getElementById('pdf-viewer');
                     viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
-                    document.getElementById('page-indicator').classList.add('hidden');
-                    pdfIsLoaded = false;
-                    lastKnownServerFilename = null;
-                    return;
-                }
-
-                if (pdfIsLoaded && data.filename === currentPdfFilename) {
-                    lastKnownServerFilename = data.filename;
                     return;
                 }
                 
+                const pdfUrl = 'data/' + data.filename;
+                const timestamp = new Date().getTime();
+                const iframeHtml = `
+                    <iframe class="pdf-iframe" src="${pdfUrl}?t=${timestamp}" 
+                            allow="fullscreen" 
+                            allowfullscreen
+                            style="width:100%;height:100%;border:none;">
+                    </iframe>
+                `;
+                
+                viewer.innerHTML = iframeHtml;
                 currentPdfFilename = data.filename;
                 lastKnownServerFilename = data.filename;
-                const viewer = document.getElementById('pdf-viewer');
-                
-                const savedScroll = localStorage.getItem('pdfScroll_' + currentPdfFilename);
-                const savedScale  = localStorage.getItem('pdfScale_'  + currentPdfFilename);
-                
-                scale = savedScale ? parseFloat(savedScale) : 1.0;
-                renderedPages = {};
-                
-                const loadingTask = pdfjsLib.getDocument('data/' + currentPdfFilename);
-                loadingTask.promise.then(pdf => {
-                    pdfDoc = pdf;
-                    totalPages = pdf.numPages;
-                    
-                    viewer.innerHTML = `
-                        <div class="pdf-controls">
-                            <button onclick="zoomOut()">🔍−</button>
-                            <span id="zoom-label">Zoom: ${(scale * 100).toFixed(0)}%</span>
-                            <button onclick="zoomIn()">🔍+</button>
-                        </div>
-                        <div class="pdf-pages-container" id="pdf-pages"></div>
-                    `;
-                    
-                    document.getElementById('page-indicator').classList.remove('hidden');
-                    document.getElementById('total-pages').textContent = totalPages;
-                    
-                    renderAllPages().then(() => {
-                        pdfIsLoaded = true;
-                        if (savedScroll) viewer.scrollTop = parseInt(savedScroll);
-                        setupTouchEvents();
-                    });
-                    
-                    viewer.onscroll = handleScroll;
-                }).catch(reason => {
-                    console.error('PDF loading error:', reason);
-                    viewer.innerHTML = `<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p><p style="font-size:13px;">${reason.message || reason}</p></div></div>`;
-                });
             });
     }
     
-    async function renderAllPages() {
-        const container = document.getElementById('pdf-pages');
-        if (!container || !pdfDoc) return;
-        container.innerHTML = '';
-        container.style.touchAction = 'pan-y pinch-zoom';
-        
-        for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-            await renderPage(pageNum, container);
-        }
-        
-        // Re-attach touch events after rendering
-        setupTouchEvents();
+    // DYNAMIC QR GENERATION
+    function getCurrentModuleUrl() {
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        const pathname = window.location.pathname;
+        const cleanPath = pathname.split('?')[0].split('#')[0];
+        return protocol + '//' + hostname + cleanPath;
     }
     
-    function renderPage(pageNum, container) {
-        return pdfDoc.getPage(pageNum).then(page => {
-            const viewport = page.getViewport({scale: scale});
-            const canvas = document.createElement('canvas');
-            canvas.className = 'pdf-page-canvas';
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            canvas.id = 'page-' + pageNum;
-            canvas.style.touchAction = 'pan-y pinch-zoom';
-            const ctx = canvas.getContext('2d');
-            return page.render({canvasContext: ctx, viewport: viewport}).promise.then(() => {
-                container.appendChild(canvas);
-            });
-        });
-    }
-    
-    function handleScroll() {
-        if (isScrolling) return;
-        isScrolling = true;
-        clearTimeout(scrollTimeout);
-        scrollTimeout = setTimeout(() => {
-            updatePageIndicator();
-            savePdfPosition();
-            isScrolling = false;
-        }, 150);
-    }
-    
-    function updatePageIndicator() {
-        const viewer = document.getElementById('pdf-viewer');
-        if (!viewer) return;
-        const pages = document.querySelectorAll('.pdf-page-canvas');
-        let currentPage = 1;
-        pages.forEach((canvas, index) => {
-            const rect = canvas.getBoundingClientRect();
-            const viewerRect = viewer.getBoundingClientRect();
-            if (rect.top <= viewerRect.top + 100 && rect.bottom >= viewerRect.top + 100) {
-                currentPage = index + 1;
-            }
-        });
-        document.getElementById('current-page').textContent = currentPage;
-    }
-    
-    function savePdfPosition() {
-        const viewer = document.getElementById('pdf-viewer');
-        if (viewer && currentPdfFilename) {
-            localStorage.setItem('pdfScroll_' + currentPdfFilename, viewer.scrollTop);
-            localStorage.setItem('pdfScale_'  + currentPdfFilename, scale);
-        }
-    }
-    
-    function zoomIn() {
-        const increment = window.innerWidth < 768 ? 0.2 : 0.25;
-        let newScale = scale + increment;
-        newScale = Math.min(newScale, 4.0);
-        
-        if (newScale !== scale) {
-            const viewer = document.getElementById('pdf-viewer');
-            let scrollRatio = 0.5;
-            if (viewer && viewer.scrollHeight > viewer.clientHeight) {
-                scrollRatio = viewer.scrollTop / (viewer.scrollHeight - viewer.clientHeight);
-            }
-            
-            scale = newScale;
-            
-            const zoomLabel = document.getElementById('zoom-label');
-            if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
-            
-            const container = document.getElementById('pdf-pages');
-            if (container) {
-                const oldHeight = container.scrollHeight;
-                container.innerHTML = '';
-                
-                renderAllPages().then(() => {
-                    if (viewer && oldHeight > 0) {
-                        const newScrollHeight = viewer.scrollHeight - viewer.clientHeight;
-                        viewer.scrollTop = scrollRatio * newScrollHeight;
-                    }
-                    savePdfPosition();
-                });
-            }
-            
-            if (window.navigator && window.navigator.vibrate) {
-                window.navigator.vibrate(50);
-            }
-        }
-    }
-    
-    function zoomOut() {
-        const decrement = window.innerWidth < 768 ? 0.2 : 0.25;
-        let newScale = scale - decrement;
-        newScale = Math.max(newScale, 0.5);
-        
-        if (newScale !== scale) {
-            const viewer = document.getElementById('pdf-viewer');
-            let scrollRatio = 0.5;
-            if (viewer && viewer.scrollHeight > viewer.clientHeight) {
-                scrollRatio = viewer.scrollTop / (viewer.scrollHeight - viewer.clientHeight);
-            }
-            
-            scale = newScale;
-            
-            const zoomLabel = document.getElementById('zoom-label');
-            if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
-            
-            const container = document.getElementById('pdf-pages');
-            if (container) {
-                const oldHeight = container.scrollHeight;
-                container.innerHTML = '';
-                
-                renderAllPages().then(() => {
-                    if (viewer && oldHeight > 0) {
-                        const newScrollHeight = viewer.scrollHeight - viewer.clientHeight;
-                        viewer.scrollTop = scrollRatio * newScrollHeight;
-                    }
-                    savePdfPosition();
-                });
-            }
-            
-            if (window.navigator && window.navigator.vibrate) {
-                window.navigator.vibrate(50);
-            }
-        }
-    }
-    
-    // DYNAMIC QR GENERATION - Creates unique QR for current module instance
     function generateQR() {
         const container = document.getElementById('qr-code');
         const linkDisplay = document.getElementById('qr-link-display');
         if (!container) return;
         
         const dynamicUrl = getCurrentModuleUrl();
-        
         const displayUrl = dynamicUrl.replace(/^https?:\/\//, '');
         linkDisplay.textContent = displayUrl;
         linkDisplay.href = dynamicUrl;
@@ -1664,7 +1256,6 @@
                 height: 300,
                 correctLevel: QRCode.CorrectLevel.H
             });
-            console.log('QR generated for:', dynamicUrl);
         } catch(e) {
             console.error('QR generation error:', e);
             container.innerHTML = '<p style="color: #e74c3c;">Error generating QR</p>';
