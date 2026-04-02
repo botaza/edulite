@@ -750,7 +750,6 @@
         const protocol = window.location.protocol;
         const hostname = window.location.hostname;
         const pathname = window.location.pathname;
-        // Remove query params and hash, keep only the base module path
         const cleanPath = pathname.split('?')[0].split('#')[0];
         return protocol + '//' + hostname + cleanPath;
     }
@@ -786,6 +785,10 @@
     let isScrolling = false;
     let scrollTimeout = null;
     let pdfIsLoaded = false;
+
+    // Track the last known server-side PDF filename so the poll can detect changes
+    // without touching the viewer if nothing changed.
+    let lastKnownServerFilename = null;
     
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
@@ -840,10 +843,10 @@
                     const serverConfig = data.config;
                     
                     modulesConfig = {
-                        wordcloud: serverConfig.wordcloud !== undefined ? serverConfig.wordcloud : (modulesConfig.wordcloud || false),
-                        pdf_viewer: serverConfig.pdf_viewer !== undefined ? serverConfig.pdf_viewer : (modulesConfig.pdf_viewer || false),
+                        wordcloud:   serverConfig.wordcloud   !== undefined ? serverConfig.wordcloud   : (modulesConfig.wordcloud   || false),
+                        pdf_viewer:  serverConfig.pdf_viewer  !== undefined ? serverConfig.pdf_viewer  : (modulesConfig.pdf_viewer  || false),
                         emoji_meter: serverConfig.emoji_meter !== undefined ? serverConfig.emoji_meter : (modulesConfig.emoji_meter || false),
-                        qr_link: serverConfig.qr_link !== undefined ? serverConfig.qr_link : (modulesConfig.qr_link || false)
+                        qr_link:     serverConfig.qr_link     !== undefined ? serverConfig.qr_link     : (modulesConfig.qr_link     || false)
                     };
                     
                     renderModules();
@@ -863,7 +866,20 @@
         const pdfModule = document.getElementById('module-pdf');
         if (pdfModule) {
             pdfModule.classList.toggle('hidden', !modulesConfig.pdf_viewer);
-            if (modulesConfig.pdf_viewer) loadPdf();
+            if (modulesConfig.pdf_viewer) {
+                // ── KEY FIX ──────────────────────────────────────────────────
+                // Only call loadPdf() from the poll path when we haven't loaded
+                // a PDF yet, or when the server reports a different file.
+                // If the PDF is already loaded and the filename hasn't changed,
+                // skip entirely so zoom / scroll state is never touched.
+                if (!pdfIsLoaded) {
+                    loadPdf();
+                } else {
+                    // Quick lightweight check: has the server's file changed?
+                    checkPdfChanged();
+                }
+                // ─────────────────────────────────────────────────────────────
+            }
         }
         
         const emojiModule = document.getElementById('module-emoji');
@@ -882,12 +898,44 @@
             }
         }
     }
+
+    // Lightweight poll helper: fetch PDF info and reload only if the file changed.
+    function checkPdfChanged() {
+        fetch(API + '?action=get_pdf_info')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success || !data.hasPdf) {
+                    // PDF was deleted server-side — clear the viewer.
+                    if (pdfIsLoaded) {
+                        pdfIsLoaded = false;
+                        currentPdfFilename = '';
+                        lastKnownServerFilename = null;
+                        pdfDoc = null;
+                        const viewer = document.getElementById('pdf-viewer');
+                        if (viewer) {
+                            viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
+                        }
+                        const indicator = document.getElementById('page-indicator');
+                        if (indicator) indicator.classList.add('hidden');
+                    }
+                    return;
+                }
+
+                // Same file as before — do nothing, preserving zoom & scroll.
+                if (data.filename === lastKnownServerFilename) return;
+
+                // File changed — do a full reload.
+                pdfIsLoaded = false;
+                loadPdf();
+            })
+            .catch(err => console.error('checkPdfChanged error:', err));
+    }
     
     function updateAdminButtons() {
-        const btnWc = document.getElementById('btn-module-wordcloud');
-        const btnPdf = document.getElementById('btn-module-pdf');
-        const btnEmoji = document.getElementById('btn-module-emoji');
-        const btnQr = document.getElementById('btn-module-qr');
+        const btnWc   = document.getElementById('btn-module-wordcloud');
+        const btnPdf  = document.getElementById('btn-module-pdf');
+        const btnEmoji= document.getElementById('btn-module-emoji');
+        const btnQr   = document.getElementById('btn-module-qr');
         
         if (btnWc) {
             btnWc.classList.toggle('active', modulesConfig.wordcloud);
@@ -1095,6 +1143,8 @@
         
         const pdfModule = document.getElementById('module-pdf');
         pdfModule.classList.remove('hidden');
+        // Force a fresh load (admin explicitly requested view)
+        pdfIsLoaded = false;
         loadPdf();
         pdfModule.scrollIntoView({ behavior: 'smooth' });
     }
@@ -1141,12 +1191,14 @@
                             }
                         }
                         
+                        // Clear stale position data for old file
                         if (currentPdfFilename) {
                             localStorage.removeItem('pdfScroll_' + currentPdfFilename);
                             localStorage.removeItem('pdfScale_' + currentPdfFilename);
                         }
                         pdfIsLoaded = false;
                         currentPdfFilename = '';
+                        lastKnownServerFilename = null;
                         
                         viewPdf();
                         updateAdminPanel();
@@ -1181,6 +1233,7 @@
                         }
                         pdfIsLoaded = false;
                         currentPdfFilename = '';
+                        lastKnownServerFilename = null;
                         pdfDoc = null;
                         const viewer = document.getElementById('pdf-viewer');
                         if (viewer) {
@@ -1202,16 +1255,26 @@
                     const viewer = document.getElementById('pdf-viewer');
                     viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
                     document.getElementById('page-indicator').classList.add('hidden');
+                    pdfIsLoaded = false;
+                    lastKnownServerFilename = null;
                     return;
                 }
-                
-                if (pdfIsLoaded && data.filename === currentPdfFilename) return;
+
+                // ── KEY FIX ──────────────────────────────────────────────────
+                // If the file is already loaded and hasn't changed, bail out
+                // immediately — do NOT touch scale, scroll, or the DOM.
+                if (pdfIsLoaded && data.filename === currentPdfFilename) {
+                    lastKnownServerFilename = data.filename;
+                    return;
+                }
+                // ─────────────────────────────────────────────────────────────
                 
                 currentPdfFilename = data.filename;
+                lastKnownServerFilename = data.filename;
                 const viewer = document.getElementById('pdf-viewer');
                 
                 const savedScroll = localStorage.getItem('pdfScroll_' + currentPdfFilename);
-                const savedScale = localStorage.getItem('pdfScale_' + currentPdfFilename);
+                const savedScale  = localStorage.getItem('pdfScale_'  + currentPdfFilename);
                 
                 scale = savedScale ? parseFloat(savedScale) : 1.0;
                 renderedPages = {};
@@ -1261,7 +1324,7 @@
             const canvas = document.createElement('canvas');
             canvas.className = 'pdf-page-canvas';
             canvas.height = viewport.height;
-            canvas.width = viewport.width;
+            canvas.width  = viewport.width;
             canvas.id = 'page-' + pageNum;
             const ctx = canvas.getContext('2d');
             return page.render({canvasContext: ctx, viewport: viewport}).promise.then(() => {
@@ -1300,7 +1363,7 @@
         const viewer = document.getElementById('pdf-viewer');
         if (viewer && currentPdfFilename) {
             localStorage.setItem('pdfScroll_' + currentPdfFilename, viewer.scrollTop);
-            localStorage.setItem('pdfScale_' + currentPdfFilename, scale);
+            localStorage.setItem('pdfScale_'  + currentPdfFilename, scale);
         }
     }
     
@@ -1337,10 +1400,8 @@
         const linkDisplay = document.getElementById('qr-link-display');
         if (!container) return;
         
-        // Generate dynamic URL from current page location
         const dynamicUrl = getCurrentModuleUrl();
         
-        // Update the clickable link text
         const displayUrl = dynamicUrl.replace(/^https?:\/\//, '');
         linkDisplay.textContent = displayUrl;
         linkDisplay.href = dynamicUrl;
@@ -1379,7 +1440,7 @@
                     wrapper.className = 'cloud-word-wrapper';
                     wrapper.style.animationDelay = (index * 0.03) + 's';
                     
-                    const text = item.display || item.word;
+                    const text  = item.display || item.word;
                     const count = item.count || 1;
                     const users = item.users || [];
                     
@@ -1549,11 +1610,11 @@
             .then(data => {
                 if (!data.success) return;
                 const lap = data.currentLap;
-                document.getElementById('stat-done').textContent = lap.done || 0;
+                document.getElementById('stat-done').textContent   = lap.done   || 0;
                 document.getElementById('stat-unsure').textContent = lap.unsure || 0;
-                document.getElementById('stat-pain').textContent = lap.pain || 0;
-                document.getElementById('stat-happy').textContent = lap.happy || 0;
-                document.getElementById('stat-help').textContent = lap.help || 0;
+                document.getElementById('stat-pain').textContent   = lap.pain   || 0;
+                document.getElementById('stat-happy').textContent  = lap.happy  || 0;
+                document.getElementById('stat-help').textContent   = lap.help   || 0;
             });
     }
     
