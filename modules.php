@@ -39,23 +39,36 @@
             padding: 8px 15px; border-radius: 20px; cursor: pointer;
             font-size: 13px; min-height: auto; min-width: auto;
         }
-        .login-modal {
+        .login-modal, .info-text-modal {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.8); display: flex;
             align-items: center; justify-content: center; z-index: 1000;
         }
-        .login-box {
+        .login-box, .info-text-box {
             background: white; padding: 30px; border-radius: 15px;
-            text-align: center; max-width: 350px; width: 90%;
+            text-align: center; max-width: 500px; width: 90%;
             animation: slideUp 0.3s ease;
         }
+        .info-text-box { max-width: 600px; text-align: left; }
         @keyframes slideUp {
             from { transform: translateY(50px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
-        .login-box h2 { color: #667eea; margin-bottom: 20px; }
+        .login-box h2, .info-text-box h2 { color: #667eea; margin-bottom: 20px; }
         .login-box input { width: 100%; max-width: none; margin: 10px 0; }
         .login-box button { width: 100%; margin: 10px 0; }
+        .info-text-box textarea {
+            width: 100%; padding: 12px; border: 2px solid #667eea;
+            border-radius: 8px; font-size: 15px; resize: vertical;
+            margin-bottom: 15px; font-family: inherit; min-height: 200px;
+        }
+        .info-text-box .modal-actions {
+            display: flex; gap: 10px; justify-content: flex-end;
+        }
+        .info-text-box .modal-actions button {
+            padding: 10px 20px; border: none; border-radius: 8px;
+            cursor: pointer; font-size: 14px; font-weight: 600;
+        }
        
         .admin-controls {
             background: #fff3cd; border: 2px solid #ffc107;
@@ -483,6 +496,20 @@
         <button type="button" onclick="saveUsername()">Join</button>
     </div>
 </div>
+
+<!-- Info Text Edit Modal (NEW - separate from admin panel) -->
+<div id="info-text-modal" class="info-text-modal hidden">
+    <div class="info-text-box">
+        <h2>✏️ Edit Info Text</h2>
+        <p style="color:#666;margin-bottom:15px;font-size:14px;">Edit the text that appears at the top when the Info module is enabled:</p>
+        <textarea id="modal-info-text" rows="10" placeholder="Enter your info text here..."></textarea>
+        <div class="modal-actions">
+            <button type="button" onclick="closeInfoTextEditor()" style="background:#95a5a6;color:white;">Cancel</button>
+            <button type="button" onclick="saveInfoTextFromModal()" class="btn-success">💾 Save Changes</button>
+        </div>
+    </div>
+</div>
+
 <!-- Emoji Animation Overlay -->
 <div class="emoji-animation-overlay" id="emoji-overlay"></div>
 
@@ -520,6 +547,7 @@
         <button type="button" onclick="toggleModule('wordcloud')" id="btn-module-wordcloud">☁️ Word Cloud</button>
         <button type="button" onclick="toggleModule('pdf_viewer')" id="btn-module-pdf">📄 PDF</button>
         <button type="button" onclick="toggleModule('info_text')" id="btn-module-info">ℹ️ Info Text</button>
+        <button type="button" onclick="openInfoTextEditor()" id="btn-edit-info" style="background:#9b59b6;">✏️ Edit Info</button>
         <button type="button" onclick="uploadPdf()" id="btn-quick-upload-pdf" style="background: #27ae60;">📤 Upload PDF</button>
         <button type="button" onclick="viewPdf()" style="background: #3498db;">👁️ View PDF</button>
         <button type="button" onclick="toggleModule('emoji_meter')" id="btn-module-emoji">📱 Emoji</button>
@@ -552,14 +580,6 @@
                 <button class="btn-success" onclick="uploadPdf()">📤 Upload/Change PDF</button>
                 <button type="button" class="btn-primary" onclick="viewPdf()">👁️ View Current PDF</button>
                 <button class="btn-danger" onclick="deletePdf()">🗑️ Delete PDF</button>
-            </div>
-           
-            <!-- INFO TEXT EDITING CARD - Now clearly visible -->
-            <div class="admin-card">
-                <h4>ℹ️ Info Text Management</h4>
-                <p style="font-size:13px; color:#666; margin-bottom:8px;">Edit the text that appears at the top when the Info module is enabled:</p>
-                <textarea id="admin-info-text" rows="8" style="width:100%; padding:12px; border:2px solid #667eea; border-radius:8px; font-size:15px; resize:vertical; margin-bottom:12px; font-family:inherit;"></textarea>
-                <button class="btn-success" onclick="saveInfoText()" style="width:100%; padding:12px;">💾 Save Info Text</button>
             </div>
            
             <div class="admin-card">
@@ -828,7 +848,7 @@
    
     function saveInfoText() {
         if (!isAdmin) return;
-        const text = document.getElementById('admin-info-text').value.trim();
+        const text = document.getElementById('admin-info-text')?.value.trim() || document.getElementById('modal-info-text')?.value.trim() || '';
        
         fetch(API, {
             method: 'POST',
@@ -842,6 +862,51 @@
                 currentInfoText = text;
                 const contentEl = document.getElementById('info-text-content');
                 if (contentEl) contentEl.innerHTML = text.replace(/\n/g, '<br>');
+                closeInfoTextEditor();
+            } else {
+                alert('❌ Failed to save info text');
+            }
+        })
+        .catch(() => alert('❌ Network error while saving'));
+    }
+
+    // NEW: Open Info Text Editor Modal
+    function openInfoTextEditor() {
+        if (!isAdmin) return;
+        const modal = document.getElementById('info-text-modal');
+        const textarea = document.getElementById('modal-info-text');
+        if (modal && textarea) {
+            textarea.value = currentInfoText;
+            modal.classList.remove('hidden');
+        }
+    }
+
+    // NEW: Close Info Text Editor Modal
+    function closeInfoTextEditor() {
+        const modal = document.getElementById('info-text-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+
+    // NEW: Save from modal
+    function saveInfoTextFromModal() {
+        if (!isAdmin) return;
+        const text = document.getElementById('modal-info-text').value.trim();
+       
+        fetch(API, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'action=save_info_text&text=' + encodeURIComponent(text)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ Info text saved successfully!');
+                currentInfoText = text;
+                const contentEl = document.getElementById('info-text-content');
+                if (contentEl) contentEl.innerHTML = text.replace(/\n/g, '<br>');
+                closeInfoTextEditor();
             } else {
                 alert('❌ Failed to save info text');
             }
@@ -986,9 +1051,6 @@
                 document.getElementById('admin-panel').classList.add('visible');
                 btn.classList.add('active');
                 btn.textContent = '📊 Stats ON';
-                
-                // Load current info text into the textarea
-                document.getElementById('admin-info-text').value = currentInfoText;
             } else {
                 statsCard.classList.add('hidden');
                 document.getElementById('admin-panel').classList.add('hidden');
@@ -1439,6 +1501,14 @@
             if (!modal.classList.contains('hidden')) saveUsername();
             else submitWord();
         }
+    });
+
+    // Close modals when clicking outside
+    document.getElementById('info-text-modal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeInfoTextEditor();
+    });
+    document.getElementById('login-modal')?.addEventListener('click', function(e) {
+        if (e.target === this) document.getElementById('login-modal').classList.add('hidden');
     });
 </script>
 </body>
