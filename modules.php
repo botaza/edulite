@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - PINCH ZOOM WORKING -->
+<!-- File 11 of 8: modules.php - SCALE PERSISTS -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -789,10 +789,11 @@
     let scrollTimeout = null;
     let pdfIsLoaded = false;
     
-    // PINCH ZOOM variables
+    // PINCH ZOOM variables - FIXED
     let initialPinchDistance = 0;
     let baseScale = 1.0;
     let isPinching = false;
+    let currentPinchScale = 1.0; // Track the current visual scale during pinch
     
     // LIVE USER COUNT variables
     const USER_ACTIVITY_TIMEOUT = 60000;
@@ -880,7 +881,7 @@
         return count;
     }
     
-    // ============ PINCH ZOOM - WORKING ============
+    // ============ PINCH ZOOM - FIXED TO PERSIST ============
     
     function setupPinchZoom() {
         const viewer = document.getElementById('pdf-viewer');
@@ -904,6 +905,7 @@
             isPinching = true;
             initialPinchDistance = getPinchDistance(e.touches);
             baseScale = scale;
+            currentPinchScale = 1.0;
             console.log('Pinch start - distance:', initialPinchDistance, 'base scale:', baseScale);
         }
     }
@@ -915,14 +917,14 @@
         
         const currentDistance = getPinchDistance(e.touches);
         if (initialPinchDistance > 0 && currentDistance > 0) {
-            const scaleChange = currentDistance / initialPinchDistance;
-            const newScale = baseScale * scaleChange;
+            currentPinchScale = currentDistance / initialPinchDistance;
+            const newScale = baseScale * currentPinchScale;
             const clampedScale = Math.max(0.5, Math.min(3.0, newScale));
             
             // Apply CSS transform for instant visual feedback
             const container = document.getElementById('pdf-pages');
             if (container) {
-                container.style.transform = `scale(${scaleChange})`;
+                container.style.transform = `scale(${currentPinchScale})`;
             }
             
             // Update zoom label
@@ -944,25 +946,22 @@
             container.style.transform = 'scale(1)';
         }
         
-        // Calculate final scale
-        const touches = e.changedTouches;
-        if (touches.length >= 2) {
-            const finalDistance = getPinchDistance(touches);
-            if (initialPinchDistance > 0 && finalDistance > 0) {
-                const scaleChange = finalDistance / initialPinchDistance;
-                const newScale = baseScale * scaleChange;
-                const clampedScale = Math.max(0.5, Math.min(3.0, newScale));
-                
-                // Only commit if change is significant
-                if (Math.abs(clampedScale - scale) > 0.1) {
-                    scale = clampedScale;
-                    console.log('Pinch committed - new scale:', scale);
-                    
-                    // Save and re-render
-                    savePdfPosition();
-                    reloadPdfWithScale();
-                }
-            }
+        // Calculate final committed scale using the last known pinch scale
+        const finalScale = baseScale * currentPinchScale;
+        const clampedScale = Math.max(0.5, Math.min(3.0, finalScale));
+        
+        console.log('Pinch end - base:', baseScale, 'pinch:', currentPinchScale, 'final:', clampedScale);
+        
+        // Only commit if change is significant (>10%)
+        if (Math.abs(clampedScale - scale) > 0.1) {
+            scale = clampedScale;
+            console.log('Scale committed:', scale);
+            
+            // Save and re-render
+            savePdfPosition();
+            reloadPdfWithScale();
+        } else {
+            console.log('Scale change too small, reverting');
         }
     }
     
@@ -1364,10 +1363,11 @@
                 const savedScroll = localStorage.getItem('pdfScroll_' + currentPdfFilename);
                 const savedScale = localStorage.getItem('pdfScale_' + currentPdfFilename);
                 
+                // Load saved scale or default to 1.0
                 scale = savedScale ? parseFloat(savedScale) : 1.0;
-                renderedPages = {};
+                console.log('Loading PDF with scale:', scale);
                 
-                console.log('Loading PDF:', currentPdfFilename, 'at scale:', scale);
+                renderedPages = {};
                 
                 const loadingTask = pdfjsLib.getDocument('data/' + currentPdfFilename);
                 loadingTask.promise.then(pdf => {
@@ -1454,7 +1454,7 @@
         if (viewer && currentPdfFilename) {
             localStorage.setItem('pdfScroll_' + currentPdfFilename, viewer.scrollTop);
             localStorage.setItem('pdfScale_' + currentPdfFilename, scale);
-            console.log('Saved position - scroll:', viewer.scrollTop, 'scale:', scale);
+            console.log('Saved - scroll:', viewer.scrollTop, 'scale:', scale);
         }
     }
     
