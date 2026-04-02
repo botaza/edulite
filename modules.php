@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - FULL FILE WITH FIXED PINCH ZOOM -->
+<!-- File 11 of 8: modules.php - FULL FILE WITH FIXED PINCH ZOOM (No Reset) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -338,7 +338,7 @@
             flex-direction: column;
             align-items: center;
             gap: 20px;
-            transform-origin: top center;
+            transform-origin: top left;
             transition: transform 0.08s ease-out;
         }
         .pdf-page-canvas {
@@ -635,7 +635,7 @@
    
     <!-- PDF Viewer Module -->
     <div class="module-section hidden" id="module-pdf">
-        <h2>📄 PDF Viewer (Pinch to Zoom Supported)</h2>
+        <h2>📄 PDF Viewer (Pinch to Zoom + Scroll)</h2>
         <div class="pdf-viewer-container" id="pdf-viewer">
             <div class="no-pdf">
                 <div>
@@ -781,15 +781,13 @@
     let scale = 1.0;
     let currentPdfFilename = '';
     let totalPages = 0;
-    let renderedPages = {};
-    let isScrolling = false;
-    let scrollTimeout = null;
     let pdfIsLoaded = false;
-   
-    // PINCH ZOOM variables - FIXED
+
+    // Improved Pinch Zoom variables
+    let isPinching = false;
     let initialDistance = 0;
     let initialScale = 1.0;
-    let isPinching = false;
+    let lastCommittedScale = 1.0;
 
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
@@ -811,7 +809,12 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
-                        modulesConfig = data.config || modulesConfig;
+                        modulesConfig = {
+                            wordcloud: data.config.wordcloud !== undefined ? data.config.wordcloud : (modulesConfig.wordcloud || false),
+                            pdf_viewer: data.config.pdf_viewer !== undefined ? data.config.pdf_viewer : (modulesConfig.pdf_viewer || false),
+                            emoji_meter: data.config.emoji_meter !== undefined ? data.config.emoji_meter : (modulesConfig.emoji_meter || false),
+                            qr_link: data.config.qr_link !== undefined ? data.config.qr_link : (modulesConfig.qr_link || false)
+                        };
                         updateAdminButtons();
                     }
                 })
@@ -833,7 +836,7 @@
         }, 500);
     });
    
-    // ============ PINCH ZOOM - FIXED VERSION ============
+    // ==================== FIXED PINCH ZOOM ====================
     function setupPinchZoom() {
         const viewer = document.getElementById('pdf-viewer');
         if (!viewer) return;
@@ -856,7 +859,8 @@
             isPinching = true;
             initialDistance = getPinchDistance(e.touches);
             initialScale = scale;
-            console.log('Pinch started - initial scale:', initialScale);
+            lastCommittedScale = scale;
+            console.log('Pinch start - initial scale:', initialScale);
         }
     }
    
@@ -869,7 +873,8 @@
         if (initialDistance <= 0) return;
        
         const pinchRatio = currentDistance / initialDistance;
-        const newScale = Math.max(0.5, Math.min(3.5, initialScale * pinchRatio));
+        let newScale = initialScale * pinchRatio;
+        newScale = Math.max(0.5, Math.min(4.0, newScale));
        
         const container = document.getElementById('pdf-pages');
         if (container) {
@@ -882,7 +887,7 @@
         }
     }
    
-    function handleTouchEnd(e) {
+    function handleTouchEnd() {
         if (!isPinching || !pdfDoc) return;
        
         isPinching = false;
@@ -890,19 +895,21 @@
         const container = document.getElementById('pdf-pages');
         if (!container) return;
        
-        const transform = container.style.transform;
+        const transform = container.style.transform || 'scale(1)';
         const match = transform.match(/scale\(([^)]+)\)/);
-        const finalScale = match ? parseFloat(match[1]) : scale;
+        let finalScale = match ? parseFloat(match[1]) : scale;
+        finalScale = Math.max(0.5, Math.min(4.0, finalScale));
        
-        console.log('Pinch ended - final scale:', finalScale);
-       
-        if (Math.abs(finalScale - scale) > 0.05) {
-            scale = Math.max(0.5, Math.min(3.5, finalScale));
-            console.log('Scale committed:', scale);
+        if (Math.abs(finalScale - lastCommittedScale) > 0.08) {
+            scale = finalScale;
+            lastCommittedScale = finalScale;
+            console.log('Committing new scale:', scale);
             savePdfPosition();
             reloadPdfWithScale();
         } else {
             container.style.transform = 'scale(1)';
+            const zoomLabel = document.getElementById('zoom-label');
+            if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + Math.round(scale * 100) + '%';
         }
     }
    
@@ -1190,15 +1197,12 @@
             const file = input.files[0];
             if (!file) return;
            
-            console.log('Uploading:', file.name, 'Size:', (file.size / 1024 / 1024).toFixed(2) + ' MB');
-           
             const formData = new FormData();
             formData.append('pdf', file);
            
             fetch(API + '?action=upload_pdf', { method: 'POST', body: formData })
                 .then(async r => {
                     const text = await r.text();
-                    console.log('Server raw response:', text);
                     try {
                         return JSON.parse(text);
                     } catch(e) {
@@ -1238,7 +1242,6 @@
                             msg += '\n\n⚠️ The filename contains Russian letters.\nTry renaming the file to English letters only and upload again.';
                         }
                         alert('❌ Upload failed:\n\n' + msg);
-                        console.error('Upload failed details:', data);
                     }
                 })
                 .catch(err => {
@@ -1295,11 +1298,11 @@
                 currentPdfFilename = data.filename;
                 const savedScale = localStorage.getItem('pdfScale_' + currentPdfFilename);
                 scale = savedScale ? parseFloat(savedScale) : 1.0;
+                lastCommittedScale = scale;
                 console.log('Loading PDF with scale:', scale);
                
-                renderedPages = {};
-               
                 const viewer = document.getElementById('pdf-viewer');
+               
                 viewer.innerHTML = `
                     <div class="pdf-controls">
                         <button onclick="zoomOut()">🔍−</button>
@@ -1339,6 +1342,7 @@
         for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
             await renderPage(pageNum, container);
         }
+        container.style.transform = 'scale(1)';
     }
    
     function renderPage(pageNum, container) {
@@ -1357,14 +1361,8 @@
     }
    
     function handleScroll() {
-        if (isScrolling) return;
-        isScrolling = true;
-        clearTimeout(scrollTimeout);
-        scrollTimeout = setTimeout(() => {
-            updatePageIndicator();
-            savePdfPosition();
-            isScrolling = false;
-        }, 150);
+        savePdfPosition();
+        updatePageIndicator();
     }
    
     function updatePageIndicator() {
@@ -1387,12 +1385,11 @@
         if (viewer && currentPdfFilename) {
             localStorage.setItem('pdfScroll_' + currentPdfFilename, viewer.scrollTop);
             localStorage.setItem('pdfScale_' + currentPdfFilename, scale);
-            console.log('Saved - scroll:', viewer.scrollTop, 'scale:', scale);
         }
     }
    
     function zoomIn() {
-        scale = Math.min(3.5, scale + 0.25);
+        scale = Math.min(4.0, scale + 0.25);
         reloadPdfWithScale();
     }
    
@@ -1406,8 +1403,6 @@
         const scrollRatio = viewer ? viewer.scrollTop / Math.max(viewer.scrollHeight, 1) : 0;
         const zoomLabel = document.getElementById('zoom-label');
         if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
-       
-        console.log('Reloading PDF at scale:', scale);
        
         const container = document.getElementById('pdf-pages');
         if (container) container.style.transform = 'scale(1)';
@@ -1438,7 +1433,6 @@
                 height: 300,
                 correctLevel: QRCode.CorrectLevel.H
             });
-            console.log('QR generated for:', dynamicUrl);
         } catch(e) {
             console.error('QR generation error:', e);
             container.innerHTML = '<p style="color: #e74c3c;">Error generating QR</p>';
