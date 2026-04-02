@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - PINCH ZOOM FIXED -->
+<!-- File 11 of 8: modules.php - SCROLL + ZOOM FIXED -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,7 +14,6 @@
             padding: 0; margin: 0;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            touch-action: pan-x pan-y;
         }
         .game-container { max-width: 1200px; margin: 0 auto; padding: 15px; }
         .game-header {
@@ -302,9 +301,9 @@
             height: 70vh;
             background: #525659;
             border-radius: 10px;
-            overflow-y: scroll;
+            overflow-y: auto;
             position: relative;
-            touch-action: pan-x pan-y;
+            -webkit-overflow-scrolling: touch;
         }
         .pdf-controls {
             background: #333;
@@ -338,15 +337,12 @@
             flex-direction: column;
             align-items: center;
             gap: 0;
-            transform-origin: top center;
-            transition: transform 0.1s ease-out;
         }
         .pdf-page-canvas {
             display: block;
             margin: 0 auto 20px auto;
             box-shadow: 0 4px 8px rgba(0,0,0,0.3);
             max-width: 100%;
-            touch-action: none;
         }
         .page-number-indicator {
             background: rgba(0,0,0,0.7);
@@ -750,7 +746,7 @@
     // PDF.js setup
     const PDFJS_VERSION = '3.11.174';
     
-    // DYNAMIC QR URL - Generated from current page location
+    // DYNAMIC QR URL
     function getCurrentModuleUrl() {
         const protocol = window.location.protocol;
         const hostname = window.location.hostname;
@@ -791,14 +787,13 @@
     let scrollTimeout = null;
     let pdfIsLoaded = false;
     
-    // PINCH ZOOM variables - FIXED
+    // PINCH ZOOM variables - SIMPLIFIED
     let initialPinchDistance = 0;
-    let initialPinchScale = 1.0;
+    let baseScale = 1.0;
     let isPinching = false;
-    let pinchVisualScale = 1.0; // For CSS transform visual feedback
     
     // LIVE USER COUNT variables
-    const USER_ACTIVITY_TIMEOUT = 60000; // 1 minute in ms
+    const USER_ACTIVITY_TIMEOUT = 60000;
     let userActivity = {};
     
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
@@ -835,7 +830,7 @@
         }, 500);
     });
     
-    // ============ LIVE USER COUNT FUNCTIONS ============
+    // ============ LIVE USER COUNT ============
     
     function updateUserActivity(user) {
         if (!user) return;
@@ -883,16 +878,17 @@
         return count;
     }
     
-    // ============ PINCH ZOOM FUNCTIONS - FIXED ============
+    // ============ PINCH ZOOM - FIXED ============
     
     function setupPinchZoom() {
         const viewer = document.getElementById('pdf-viewer');
         if (!viewer) return;
         
-        viewer.addEventListener('touchstart', handleTouchStart, { passive: false });
+        // Only handle touch events, don't block scrolling
+        viewer.addEventListener('touchstart', handleTouchStart, { passive: true });
         viewer.addEventListener('touchmove', handleTouchMove, { passive: false });
-        viewer.addEventListener('touchend', handleTouchEnd, { passive: false });
-        viewer.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+        viewer.addEventListener('touchend', handleTouchEnd, { passive: true });
+        viewer.addEventListener('touchcancel', handleTouchEnd, { passive: true });
     }
     
     function getPinchDistance(touches) {
@@ -904,36 +900,26 @@
     
     function handleTouchStart(e) {
         if (e.touches.length === 2 && pdfDoc) {
-            e.preventDefault();
             isPinching = true;
             initialPinchDistance = getPinchDistance(e.touches);
-            initialPinchScale = scale;
-            pinchVisualScale = 1.0; // Reset visual scale
-            console.log('Pinch start:', initialPinchDistance, 'base scale:', scale);
+            baseScale = scale;
+            console.log('Pinch start - distance:', initialPinchDistance, 'base scale:', baseScale);
         }
     }
     
     function handleTouchMove(e) {
-        if (!isPinching || e.touches.length < 2 || !pdfDoc) return;
-        e.preventDefault();
+        // Only prevent default if actually pinching with 2 fingers
+        if (!isPinching || e.touches.length !== 2 || !pdfDoc) return;
+        
+        e.preventDefault(); // Only block scroll during actual pinch
         
         const currentDistance = getPinchDistance(e.touches);
         if (initialPinchDistance > 0 && currentDistance > 0) {
-            // Calculate the visual scale factor for CSS transform
-            pinchVisualScale = currentDistance / initialPinchDistance;
+            const scaleChange = currentDistance / initialPinchDistance;
+            const newScale = baseScale * scaleChange;
+            const clampedScale = Math.max(0.5, Math.min(3.0, newScale));
             
-            // Calculate the target scale (base scale * pinch factor)
-            const targetScale = initialPinchScale * pinchVisualScale;
-            const clampedScale = Math.max(0.5, Math.min(3.0, targetScale));
-            
-            // Apply CSS transform for instant visual feedback
-            const container = document.getElementById('pdf-pages');
-            if (container) {
-                container.style.transform = `scale(${pinchVisualScale})`;
-                container.style.transformOrigin = 'top center';
-            }
-            
-            // Update the zoom label to show what the committed scale will be
+            // Update zoom label in real-time
             const zoomLabel = document.getElementById('zoom-label');
             if (zoomLabel) {
                 zoomLabel.textContent = 'Zoom: ' + (clampedScale * 100).toFixed(0) + '%';
@@ -942,33 +928,24 @@
     }
     
     function handleTouchEnd(e) {
-        if (isPinching && pdfDoc) {
-            e.preventDefault();
-            isPinching = false;
+        if (!isPinching || !pdfDoc) return;
+        
+        isPinching = false;
+        const currentDistance = getPinchDistance(e.changedTouches);
+        
+        if (initialPinchDistance > 0 && currentDistance > 0) {
+            const scaleChange = currentDistance / initialPinchDistance;
+            const newScale = baseScale * scaleChange;
+            const clampedScale = Math.max(0.5, Math.min(3.0, newScale));
             
-            // Calculate the final committed scale
-            const finalScale = initialPinchScale * pinchVisualScale;
-            const clampedScale = Math.max(0.5, Math.min(3.0, finalScale));
-            
-            // Only commit if the change is significant
+            // Only commit if change is significant (>10%)
             if (Math.abs(clampedScale - scale) > 0.1) {
                 scale = clampedScale;
+                console.log('Pinch committed - new scale:', scale);
                 
-                // Reset CSS transform
-                const container = document.getElementById('pdf-pages');
-                if (container) {
-                    container.style.transform = 'scale(1)';
-                }
-                
-                // Re-render PDF with new scale
+                // Save and re-render
+                savePdfPosition();
                 reloadPdfWithScale();
-                console.log('Pinch committed: scale =', scale);
-            } else {
-                // Revert visual transform if change was too small
-                const container = document.getElementById('pdf-pages');
-                if (container) {
-                    container.style.transform = 'scale(1)';
-                }
             }
         }
     }
@@ -1373,7 +1350,8 @@
                 
                 scale = savedScale ? parseFloat(savedScale) : 1.0;
                 renderedPages = {};
-                pinchVisualScale = 1.0;
+                
+                console.log('Loading PDF:', currentPdfFilename, 'at scale:', scale);
                 
                 const loadingTask = pdfjsLib.getDocument('data/' + currentPdfFilename);
                 loadingTask.promise.then(pdf => {
@@ -1460,6 +1438,7 @@
         if (viewer && currentPdfFilename) {
             localStorage.setItem('pdfScroll_' + currentPdfFilename, viewer.scrollTop);
             localStorage.setItem('pdfScale_' + currentPdfFilename, scale);
+            console.log('Saved position - scroll:', viewer.scrollTop, 'scale:', scale);
         }
     }
     
@@ -1480,11 +1459,7 @@
         const zoomLabel = document.getElementById('zoom-label');
         if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
         
-        // Reset any CSS transform
-        const container = document.getElementById('pdf-pages');
-        if (container) {
-            container.style.transform = 'scale(1)';
-        }
+        console.log('Reloading PDF at scale:', scale);
         
         renderedPages = {};
         const pagesContainer = document.getElementById('pdf-pages');
