@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - SEMI-TRANSPARENT DELETE + QR MODULE -->
+<!-- File 11 of 8: modules.php - EMOJI LOG FIXED AT BOTTOM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -131,46 +131,72 @@
         .stat-box .stat-count { font-size: 20px; font-weight: 700; color: #667eea; }
         .stat-box .stat-label { font-size: 10px; color: #999; text-transform: uppercase; }
         
+        /* EMOJI LOG - FIXED AT BOTTOM WHEN TOGGLED */
         .emoji-log-section {
-            background: rgba(255,255,255,0.95); border-radius: 15px;
-            padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            margin-bottom: 15px;
+            background: rgba(255,255,255,0.98);
+            border-radius: 15px 15px 0 0;
+            padding: 20px;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 900;
+            max-height: 40vh;
+            overflow-y: auto;
+            display: none;
+            border-top: 3px solid #667eea;
+        }
+        .emoji-log-section.visible {
+            display: block;
+            animation: slideUpLog 0.3s ease;
+        }
+        @keyframes slideUpLog {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
         }
         .emoji-log-section h3 {
-            color: #667eea; margin: 0 0 20px 0; font-size: 20px;
-            display: flex; align-items: center; justify-content: space-between;
+            color: #667eea;
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
         .emoji-log-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 13px;
+            font-size: 12px;
         }
         .emoji-log-table th {
             background: #667eea;
             color: white;
-            padding: 10px;
+            padding: 8px;
             text-align: left;
+            position: sticky;
+            top: 0;
         }
         .emoji-log-table td {
-            padding: 8px;
-            border-bottom: 1px solid #dee2e6;
+            padding: 6px 8px;
+            border-bottom: 1px solid #eee;
         }
-        .emoji-log-table tr:hover { background: #e9ecef; }
-        .emoji-log-table .col-emoji { font-size: 20px; width: 50px; text-align: center; }
+        .emoji-log-table tr:hover { background: #f8f9fa; }
+        .emoji-log-table .col-emoji { font-size: 18px; width: 40px; text-align: center; }
         .emoji-log-table .col-user { font-weight: 600; }
-        .emoji-log-table .col-time { color: #999; font-size: 11px; }
+        .emoji-log-table .col-time { color: #999; font-size: 10px; }
         .emoji-log-table .col-lap { 
             background: #667eea; color: white; 
-            padding: 3px 8px; border-radius: 10px; 
-            font-size: 10px; font-weight: 600; display: inline-block;
+            padding: 2px 6px; border-radius: 8px; 
+            font-size: 9px; font-weight: 600; display: inline-block;
         }
         .emoji-log-table .col-action { text-align: center; }
         .delete-row-btn {
             background: #e74c3c; color: white;
-            border: none; padding: 4px 10px;
-            border-radius: 4px; cursor: pointer; font-size: 11px;
+            border: none; padding: 3px 8px;
+            border-radius: 4px; cursor: pointer; font-size: 10px;
         }
         
+        /* MODULE SECTIONS */
         .module-section {
             background: rgba(255,255,255,0.95); border-radius: 15px;
             padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
@@ -226,7 +252,7 @@
             cursor: pointer; font-size: 12px; font-weight: bold;
             display: none; align-items: center; justify-content: center;
             z-index: 20;
-            opacity: 0.6; /* PATCH 1: Semi-transparent so word is visible behind */
+            opacity: 0.6;
         }
         .delete-btn:hover { opacity: 1; }
         .admin-mode .delete-btn { display: flex; }
@@ -463,6 +489,8 @@
             .emoji-stat { min-width: 60px; padding: 8px 12px; }
             .admin-grid { grid-template-columns: 1fr; }
             #qr-code { width: 200px; height: 200px; }
+            .emoji-log-section { max-height: 50vh; }
+            .emoji-log-table { font-size: 11px; }
         }
     </style>
 </head>
@@ -589,31 +617,6 @@
         </div>
     </div>
     
-    <!-- Emoji Log Section -->
-    <div class="emoji-log-section hidden" id="emoji-log-section">
-        <h3>
-            <span>📋 Emoji Vote Log</span>
-            <div>
-                <button type="button" onclick="deleteEmojiLog('all')" style="background: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-right: 8px;">🗑️ Clear All</button>
-                <button type="button" onclick="refreshEmojiLog()" style="background: #667eea; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 12px;">🔄 Refresh</button>
-            </div>
-        </h3>
-        <table class="emoji-log-table" id="emoji-log-table">
-            <thead>
-                <tr>
-                    <th>Emoji</th>
-                    <th>User</th>
-                    <th>Time</th>
-                    <th>Lap</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="emoji-log-body">
-                <tr><td colspan="5" style="text-align: center; color: #999; padding: 20px;">Loading...</td></tr>
-            </tbody>
-        </table>
-    </div>
-    
     <!-- Word Cloud Module -->
     <div class="module-section hidden" id="module-wordcloud">
         <h2>☁️ Word Cloud</h2>
@@ -712,6 +715,32 @@
     </div>
 </div>
 
+<!-- Emoji Log Section - FIXED AT BOTTOM -->
+<div class="emoji-log-section" id="emoji-log-section">
+    <h3>
+        <span>📋 Emoji Vote Log</span>
+        <div>
+            <button type="button" onclick="deleteEmojiLog('all')" style="background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-right: 5px;">🗑️ Clear All</button>
+            <button type="button" onclick="refreshEmojiLog()" style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px;">🔄 Refresh</button>
+            <button type="button" onclick="toggleEmojiLog()" style="background: #95a5a6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 5px;">✕ Close</button>
+        </div>
+    </h3>
+    <table class="emoji-log-table" id="emoji-log-table">
+        <thead>
+            <tr>
+                <th>Emoji</th>
+                <th>User</th>
+                <th>Time</th>
+                <th>Lap</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="emoji-log-body">
+            <tr><td colspan="5" style="text-align: center; color: #999; padding: 20px;">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
 <script>
     // PDF.js setup
     const PDFJS_VERSION = '3.11.174';
@@ -798,7 +827,15 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    modulesConfig = data.config;
+                    const serverConfig = data.config;
+                    
+                    modulesConfig = {
+                        wordcloud: serverConfig.wordcloud !== undefined ? serverConfig.wordcloud : (modulesConfig.wordcloud || false),
+                        pdf_viewer: serverConfig.pdf_viewer !== undefined ? serverConfig.pdf_viewer : (modulesConfig.pdf_viewer || false),
+                        emoji_meter: serverConfig.emoji_meter !== undefined ? serverConfig.emoji_meter : (modulesConfig.emoji_meter || false),
+                        qr_link: serverConfig.qr_link !== undefined ? serverConfig.qr_link : (modulesConfig.qr_link || false)
+                    };
+                    
                     renderModules();
                     updateAdminButtons();
                 }
@@ -825,7 +862,6 @@
             if (modulesConfig.emoji_meter) updateEmojiStats();
         }
         
-        // QR Module
         const qrModule = document.getElementById('module-qr');
         if (qrModule) {
             if (modulesConfig.qr_link) {
@@ -928,7 +964,11 @@
     
     function toggleModule(module) {
         if (!isAdmin) return;
+        
         modulesConfig[module] = !modulesConfig[module];
+        
+        renderModules();
+        updateAdminButtons();
         
         fetch(API, {
             method: 'POST',
@@ -937,10 +977,18 @@
         })
         .then(r => r.json())
         .then(data => {
-            if (data.success) {
+            if (!data.success) {
+                modulesConfig[module] = !modulesConfig[module];
                 renderModules();
                 updateAdminButtons();
+                alert('❌ Failed to update module config');
             }
+        })
+        .catch(err => {
+            modulesConfig[module] = !modulesConfig[module];
+            renderModules();
+            updateAdminButtons();
+            console.error('Config sync error:', err);
         });
     }
     
@@ -988,10 +1036,12 @@
         
         if (showEmojiLogMode) {
             section.classList.remove('hidden');
+            section.classList.add('visible');
             btn.classList.add('active');
             btn.textContent = '📋 Log ON';
             refreshEmojiLog();
         } else {
+            section.classList.remove('visible');
             section.classList.add('hidden');
             btn.classList.remove('active');
             btn.textContent = '📋 Emoji Log';
