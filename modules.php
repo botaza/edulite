@@ -131,16 +131,14 @@
         .stat-box .stat-count { font-size: 20px; font-weight: 700; color: #667eea; }
         .stat-box .stat-label { font-size: 10px; color: #999; text-transform: uppercase; }
        
-        /* EMOJI LOG - FIXED AT BOTTOM WHEN TOGGLED */
+        /* EMOJI LOG */
         .emoji-log-section {
             background: rgba(255,255,255,0.98);
             border-radius: 15px 15px 0 0;
             padding: 20px;
             box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
+            bottom: 0; left: 0; right: 0;
             z-index: 900;
             max-height: 40vh;
             overflow-y: auto;
@@ -297,7 +295,29 @@
             to { opacity: 1; transform: scale(1); }
         }
        
-        /* PDF VIEWER STYLES - Simple & Mobile Reliable */
+        /* INFO TEXT MODULE */
+        .info-text-module {
+            background: rgba(255,255,255,0.95); 
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            margin-bottom: 15px;
+            font-size: 17px;
+            line-height: 1.6;
+            color: #2c3e50;
+        }
+        .info-text-module h2 {
+            color: #667eea; 
+            margin: 0 0 15px 0; 
+            font-size: 22px; 
+            text-align: center;
+        }
+        .info-text-content {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+       
+        /* PDF VIEWER */
         .pdf-viewer-container {
             height: 70vh;
             background: #525659;
@@ -411,7 +431,7 @@
        
         .hidden { display: none !important; }
        
-        /* QR Code Module Styles */
+        /* QR Code */
         .qr-section {
             background: rgba(255,255,255,0.95);
             border-radius: 15px;
@@ -471,6 +491,7 @@
 </div>
 <!-- Emoji Animation Overlay -->
 <div class="emoji-animation-overlay" id="emoji-overlay"></div>
+
 <div class="game-container">
     <!-- Header -->
     <div class="game-header">
@@ -504,6 +525,7 @@
         <button type="button" onclick="toggleEmojiLog()" id="btn-emoji-log">📋 Emoji Log</button>
         <button type="button" onclick="toggleModule('wordcloud')" id="btn-module-wordcloud">☁️ Word Cloud</button>
         <button type="button" onclick="toggleModule('pdf_viewer')" id="btn-module-pdf">📄 PDF</button>
+        <button type="button" onclick="toggleModule('info_text')" id="btn-module-info">ℹ️ Info Text</button>
         <button type="button" onclick="uploadPdf()" id="btn-quick-upload-pdf" style="background: #27ae60;">📤 Upload PDF</button>
         <button type="button" onclick="viewPdf()" style="background: #3498db;">👁️ View PDF</button>
         <button type="button" onclick="toggleModule('emoji_meter')" id="btn-module-emoji">📱 Emoji</button>
@@ -536,6 +558,12 @@
                 <button class="btn-success" onclick="uploadPdf()">📤 Upload/Change PDF</button>
                 <button type="button" class="btn-primary" onclick="viewPdf()">👁️ View Current PDF</button>
                 <button class="btn-danger" onclick="deletePdf()">🗑️ Delete PDF</button>
+            </div>
+           
+            <div class="admin-card">
+                <h4>ℹ️ Info Text Management</h4>
+                <textarea id="admin-info-text" rows="6" style="width:100%; padding:12px; border:2px solid #667eea; border-radius:8px; font-size:15px; resize:vertical; margin-bottom:10px;"></textarea>
+                <button class="btn-success" onclick="saveInfoText()">💾 Save Info Text</button>
             </div>
            
             <div class="admin-card">
@@ -577,6 +605,12 @@
                 <p style="font-size: 11px; color: #999; margin-top: 10px;">Total: <span id="admin-total-votes">0</span></p>
             </div>
         </div>
+    </div>
+   
+    <!-- NEW INFO TEXT MODULE - Appears at the top when enabled -->
+    <div class="module-section hidden" id="module-info-text">
+        <h2>ℹ️ Information</h2>
+        <div class="info-text-content" id="info-text-content"></div>
     </div>
    
     <!-- Word Cloud Module -->
@@ -673,7 +707,8 @@
         </a>
     </div>
 </div>
-<!-- Emoji Log Section - FIXED AT BOTTOM -->
+
+<!-- Emoji Log Section -->
 <div class="emoji-log-section" id="emoji-log-section">
     <h3>
         <span>📋 Emoji Vote Log</span>
@@ -716,6 +751,9 @@
     // PDF variables
     let currentPdfFilename = '';
     let pdfDoc = null;
+
+    // Info Text
+    let currentInfoText = '';
 
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
@@ -768,9 +806,11 @@
                         wordcloud: serverConfig.wordcloud !== undefined ? serverConfig.wordcloud : (modulesConfig.wordcloud || false),
                         pdf_viewer: serverConfig.pdf_viewer !== undefined ? serverConfig.pdf_viewer : (modulesConfig.pdf_viewer || false),
                         emoji_meter: serverConfig.emoji_meter !== undefined ? serverConfig.emoji_meter : (modulesConfig.emoji_meter || false),
-                        qr_link: serverConfig.qr_link !== undefined ? serverConfig.qr_link : (modulesConfig.qr_link || false)
+                        qr_link: serverConfig.qr_link !== undefined ? serverConfig.qr_link : (modulesConfig.qr_link || false),
+                        info_text: serverConfig.info_text !== undefined ? serverConfig.info_text : (modulesConfig.info_text || false)
                     };
                    
+                    loadInfoText();
                     renderModules();
                     updateAdminButtons();
                 }
@@ -778,7 +818,47 @@
             .catch(err => console.error(err));
     }
    
+    function loadInfoText() {
+        fetch(API + '?action=get_info_text')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    currentInfoText = data.text || '';
+                    const contentEl = document.getElementById('info-text-content');
+                    if (contentEl) contentEl.innerHTML = currentInfoText.replace(/\n/g, '<br>');
+                }
+            });
+    }
+   
+    function saveInfoText() {
+        if (!isAdmin) return;
+        const text = document.getElementById('admin-info-text').value.trim();
+        
+        fetch(API, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'action=save_info_text&text=' + encodeURIComponent(text)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ Info text saved!');
+                currentInfoText = text;
+                const contentEl = document.getElementById('info-text-content');
+                if (contentEl) contentEl.innerHTML = text.replace(/\n/g, '<br>');
+            } else {
+                alert('❌ Failed to save info text');
+            }
+        });
+    }
+   
     function renderModules() {
+        // Info Text - always first when enabled
+        const infoModule = document.getElementById('module-info-text');
+        if (infoModule) {
+            infoModule.classList.toggle('hidden', !modulesConfig.info_text);
+        }
+       
         const wcModule = document.getElementById('module-wordcloud');
         if (wcModule) {
             wcModule.classList.toggle('hidden', !modulesConfig.wordcloud);
@@ -813,88 +893,13 @@
         const btnPdf = document.getElementById('btn-module-pdf');
         const btnEmoji = document.getElementById('btn-module-emoji');
         const btnQr = document.getElementById('btn-module-qr');
+        const btnInfo = document.getElementById('btn-module-info');
        
-        if (btnWc) {
-            btnWc.classList.toggle('active', modulesConfig.wordcloud);
-            btnWc.textContent = (modulesConfig.wordcloud ? '✅ ' : '☁️ ') + 'Word Cloud';
-        }
-        if (btnPdf) {
-            btnPdf.classList.toggle('active', modulesConfig.pdf_viewer);
-            btnPdf.textContent = (modulesConfig.pdf_viewer ? '✅ ' : '📄 ') + 'PDF';
-        }
-        if (btnEmoji) {
-            btnEmoji.classList.toggle('active', modulesConfig.emoji_meter);
-            btnEmoji.textContent = (modulesConfig.emoji_meter ? '✅ ' : '📱 ') + 'Emoji';
-        }
-        if (btnQr) {
-            btnQr.classList.toggle('active', modulesConfig.qr_link);
-            btnQr.textContent = (modulesConfig.qr_link ? '✅ ' : '🔗 ') + 'QR Link';
-        }
-    }
-   
-    function toggleAdminPanel() {
-        if (!isAdmin) return;
-        const statsCard = document.getElementById('emoji-stats-card');
-        const btn = document.getElementById('btn-emoji-stats');
-       
-        if (statsCard && btn) {
-            const isHidden = statsCard.classList.contains('hidden');
-           
-            document.querySelectorAll('#admin-panel .admin-card').forEach(card => {
-                card.classList.add('hidden');
-            });
-           
-            if (isHidden) {
-                statsCard.classList.remove('hidden');
-                document.getElementById('admin-panel').classList.remove('hidden');
-                document.getElementById('admin-panel').classList.add('visible');
-                btn.classList.add('active');
-                btn.textContent = '📊 Stats ON';
-                updateAdminPanel();
-            } else {
-                statsCard.classList.add('hidden');
-                document.getElementById('admin-panel').classList.add('hidden');
-                document.getElementById('admin-panel').classList.remove('visible');
-                btn.classList.remove('active');
-                btn.textContent = '📊 Stats';
-            }
-        }
-    }
-   
-    function updateAdminPanel() {
-        if (!isAdmin) return;
-       
-        fetch(API + '?action=get_emoji_stats')
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById('admin-lap-number').textContent = data.lapNumber || 1;
-                    document.getElementById('admin-total-votes').textContent = data.allTime.total || 0;
-                    document.getElementById('admin-stat-done').textContent = data.allTime.done || 0;
-                    document.getElementById('admin-stat-unsure').textContent = data.allTime.unsure || 0;
-                    document.getElementById('admin-stat-pain').textContent = data.allTime.pain || 0;
-                    document.getElementById('admin-stat-happy').textContent = data.allTime.happy || 0;
-                    document.getElementById('admin-stat-help').textContent = data.allTime.help || 0;
-                }
-            });
-       
-        fetch(API + '?action=get_pdf_info')
-            .then(r => r.json())
-            .then(data => {
-                const pdfName = document.getElementById('admin-pdf-name');
-                const pdfTime = document.getElementById('admin-pdf-time');
-               
-                if (data.success && data.hasPdf) {
-                    pdfName.textContent = data.original || 'Lesson.pdf';
-                    if (data.uploadTime) {
-                        const date = new Date(data.uploadTime * 1000);
-                        pdfTime.textContent = 'Uploaded: ' + date.toLocaleString();
-                    }
-                } else {
-                    pdfName.textContent = 'No PDF uploaded';
-                    pdfTime.textContent = '';
-                }
-            });
+        if (btnWc) btnWc.classList.toggle('active', modulesConfig.wordcloud);
+        if (btnPdf) btnPdf.classList.toggle('active', modulesConfig.pdf_viewer);
+        if (btnEmoji) btnEmoji.classList.toggle('active', modulesConfig.emoji_meter);
+        if (btnQr) btnQr.classList.toggle('active', modulesConfig.qr_link);
+        if (btnInfo) btnInfo.classList.toggle('active', modulesConfig.info_text);
     }
    
     function toggleModule(module) {
@@ -908,7 +913,11 @@
         fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=' + modulesConfig.pdf_viewer + '&emoji_meter=' + modulesConfig.emoji_meter + '&qr_link=' + modulesConfig.qr_link
+            body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + 
+                  '&pdf_viewer=' + modulesConfig.pdf_viewer + 
+                  '&emoji_meter=' + modulesConfig.emoji_meter + 
+                  '&qr_link=' + modulesConfig.qr_link +
+                  '&info_text=' + modulesConfig.info_text
         })
         .then(r => r.json())
         .then(data => {
@@ -925,6 +934,86 @@
             updateAdminButtons();
             console.error('Config sync error:', err);
         });
+    }
+   
+    // ==================== PDF FUNCTIONS ====================
+    async function loadPdf() {
+        const viewer = document.getElementById('pdf-viewer');
+        
+        fetch(API + '?action=get_pdf_info')
+            .then(r => r.json())
+            .then(async data => {
+                if (!data.success || !data.hasPdf) {
+                    viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
+                    return;
+                }
+
+                if (currentPdfFilename === data.filename && pdfDoc) return;
+
+                currentPdfFilename = data.filename;
+                viewer.innerHTML = '<div class="pdf-pages-container" id="pdf-pages"></div>';
+
+                try {
+                    const loadingTask = pdfjsLib.getDocument('data/' + currentPdfFilename);
+                    pdfDoc = await loadingTask.promise;
+
+                    const container = document.getElementById('pdf-pages');
+                    container.innerHTML = '';
+
+                    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                        const page = await pdfDoc.getPage(pageNum);
+                        const scale = 1.5;
+                        const viewport = page.getViewport({ scale: scale });
+
+                        const canvas = document.createElement('canvas');
+                        canvas.className = 'pdf-page-canvas';
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+
+                        const context = canvas.getContext('2d');
+                        await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+                        container.appendChild(canvas);
+                    }
+                } catch (err) {
+                    console.error('PDF render error:', err);
+                    viewer.innerHTML = `<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p><p style="font-size:14px;">${err.message || 'Unknown error'}</p></div></div>`;
+                }
+            })
+            .catch(err => {
+                console.error('PDF info error:', err);
+                viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p></div></div>';
+            });
+    }
+   
+    // ==================== OTHER FUNCTIONS (unchanged) ====================
+    function toggleAdminPanel() {
+        if (!isAdmin) return;
+        const statsCard = document.getElementById('emoji-stats-card');
+        const btn = document.getElementById('btn-emoji-stats');
+       
+        if (statsCard && btn) {
+            const isHidden = statsCard.classList.contains('hidden');
+           
+            document.querySelectorAll('#admin-panel .admin-card').forEach(card => card.classList.add('hidden'));
+           
+            if (isHidden) {
+                statsCard.classList.remove('hidden');
+                document.getElementById('admin-panel').classList.remove('hidden');
+                document.getElementById('admin-panel').classList.add('visible');
+                btn.classList.add('active');
+                btn.textContent = '📊 Stats ON';
+                updateAdminPanel();
+                // Load current info text into textarea
+                document.getElementById('admin-info-text').value = currentInfoText;
+            } else {
+                statsCard.classList.add('hidden');
+                document.getElementById('admin-panel').classList.add('hidden');
+                document.getElementById('admin-panel').classList.remove('visible');
+                btn.classList.remove('active');
+                btn.textContent = '📊 Stats';
+            }
+        }
     }
    
     function toggleDeleteMode() {
@@ -964,7 +1053,6 @@
    
     function toggleEmojiLog() {
         if (!isAdmin) return;
-       
         showEmojiLogMode = !showEmojiLogMode;
         const section = document.getElementById('emoji-log-section');
         const btn = document.getElementById('btn-emoji-log');
@@ -1003,21 +1091,16 @@
    
     function viewPdf() {
         if (!isAdmin) return;
-       
         if (!modulesConfig.pdf_viewer) {
             modulesConfig.pdf_viewer = true;
             fetch(API, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter + '&qr_link=' + modulesConfig.qr_link
+                body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter + '&qr_link=' + modulesConfig.qr_link + '&info_text=' + modulesConfig.info_text
             });
             const btnPdf = document.getElementById('btn-module-pdf');
-            if (btnPdf) {
-                btnPdf.classList.add('active');
-                btnPdf.textContent = '✅ PDF';
-            }
+            if (btnPdf) btnPdf.classList.add('active');
         }
-       
         const pdfModule = document.getElementById('module-pdf');
         pdfModule.classList.remove('hidden');
         loadPdf();
@@ -1033,56 +1116,31 @@
             const file = input.files[0];
             if (!file) return;
            
-            console.log('Uploading:', file.name, 'Size:', (file.size / 1024 / 1024).toFixed(2) + ' MB');
-           
             const formData = new FormData();
             formData.append('pdf', file);
            
             fetch(API + '?action=upload_pdf', { method: 'POST', body: formData })
                 .then(async r => {
                     const text = await r.text();
-                    console.log('Server raw response:', text);
-                    try {
-                        return JSON.parse(text);
-                    } catch(e) {
-                        return { success: false, error: 'Server returned invalid JSON: ' + text.substring(0, 300) };
-                    }
+                    try { return JSON.parse(text); } 
+                    catch(e) { return { success: false, error: text }; }
                 })
                 .then(data => {
                     if (data.success) {
                         alert('✅ PDF uploaded successfully!');
-                       
                         if (!modulesConfig.pdf_viewer) {
                             modulesConfig.pdf_viewer = true;
-                            fetch(API, {
-                                method: 'POST',
-                                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                                body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter + '&qr_link=' + modulesConfig.qr_link
-                            });
-                            const btnPdf = document.getElementById('btn-module-pdf');
-                            if (btnPdf) {
-                                btnPdf.classList.add('active');
-                                btnPdf.textContent = '✅ PDF';
-                            }
+                            fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter + '&qr_link=' + modulesConfig.qr_link + '&info_text=' + modulesConfig.info_text });
                         }
-                       
                         currentPdfFilename = '';
                         pdfDoc = null;
                         viewPdf();
                         updateAdminPanel();
                     } else {
-                        let msg = data.error || data.message || 'Unknown error';
-                        if (file.name.match(/[а-яА-ЯёЁ]/)) {
-                            msg += '\n\n⚠️ The filename contains Russian letters.\nTry renaming the file to English letters only and upload again.';
-                        }
-                        alert('❌ Upload failed:\n\n' + msg);
-                        console.error('Upload failed details:', data);
+                        alert('❌ Upload failed: ' + (data.error || 'Unknown error'));
                     }
                 })
-                .catch(err => {
-                    console.error('Network error during upload:', err);
-                    alert('❌ Network error while uploading. Check console (F12) for details.');
-                });
+                .catch(err => alert('❌ Network error'));
         };
         input.click();
     }
@@ -1098,65 +1156,13 @@
                         currentPdfFilename = '';
                         pdfDoc = null;
                         const viewer = document.getElementById('pdf-viewer');
-                        if (viewer) {
-                            viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
-                        }
+                        if (viewer) viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
                         updateAdminPanel();
                     }
                 });
         }
     }
    
-    async function loadPdf() {
-        const viewer = document.getElementById('pdf-viewer');
-        
-        fetch(API + '?action=get_pdf_info')
-            .then(r => r.json())
-            .then(async data => {
-                if (!data.success || !data.hasPdf) {
-                    viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
-                    return;
-                }
-
-                if (currentPdfFilename === data.filename && pdfDoc) return;
-
-                currentPdfFilename = data.filename;
-                viewer.innerHTML = '<div class="pdf-pages-container" id="pdf-pages"></div>';
-
-                try {
-                    const loadingTask = pdfjsLib.getDocument('data/' + currentPdfFilename);
-                    pdfDoc = await loadingTask.promise;
-
-                    const container = document.getElementById('pdf-pages');
-                    container.innerHTML = '';
-
-                    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-                        const page = await pdfDoc.getPage(pageNum);
-                        const scale = 1.5;                    // good balance for mobile readability
-                        const viewport = page.getViewport({ scale: scale });
-
-                        const canvas = document.createElement('canvas');
-                        canvas.className = 'pdf-page-canvas';
-                        canvas.height = viewport.height;
-                        canvas.width = viewport.width;
-
-                        const context = canvas.getContext('2d');
-                        await page.render({ canvasContext: context, viewport: viewport }).promise;
-
-                        container.appendChild(canvas);
-                    }
-                } catch (err) {
-                    console.error('PDF render error:', err);
-                    viewer.innerHTML = `<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p><p style="font-size:14px;">${err.message || 'Unknown error'}</p></div></div>`;
-                }
-            })
-            .catch(err => {
-                console.error('PDF info error:', err);
-                viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p></div></div>';
-            });
-    }
-   
-    // DYNAMIC QR GENERATION
     function generateQR() {
         const container = document.getElementById('qr-code');
         const linkDisplay = document.getElementById('qr-link-display');
@@ -1168,17 +1174,9 @@
         linkDisplay.href = dynamicUrl;
        
         container.innerHTML = '';
-       
         try {
-            new QRCode(container, {
-                text: dynamicUrl,
-                width: 300,
-                height: 300,
-                correctLevel: QRCode.CorrectLevel.H
-            });
-            console.log('QR generated for:', dynamicUrl);
+            new QRCode(container, { text: dynamicUrl, width: 300, height: 300, correctLevel: QRCode.CorrectLevel.H });
         } catch(e) {
-            console.error('QR generation error:', e);
             container.innerHTML = '<p style="color: #e74c3c;">Error generating QR</p>';
         }
     }
@@ -1392,9 +1390,7 @@
             .then(r => r.json())
             .then(data => {
                 const display = document.getElementById('user-count-display');
-                if (display && data.success) {
-                    display.textContent = '👥 ' + data.label;
-                }
+                if (display && data.success) display.textContent = '👥 ' + data.label;
             });
     }
    
@@ -1409,7 +1405,6 @@
     function showEmojiAnimation(emoji) {
         const overlay = document.getElementById('emoji-overlay');
         const symbol = EMOJI_MAP[emoji] || emoji;
-       
         for (let i = 0; i < 5; i++) {
             setTimeout(() => {
                 const el = document.createElement('div');
@@ -1420,7 +1415,6 @@
                 setTimeout(() => el.remove(), 3000);
             }, i * 200);
         }
-       
         overlay.classList.add('active');
         setTimeout(() => overlay.classList.remove('active'), 3500);
     }

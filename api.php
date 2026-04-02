@@ -1,25 +1,20 @@
 <?php
-// File 2 of 8: api.php - COMPLETE WITH MODULE CONFIG
-
+// File 2 of 8: api.php - COMPLETE WITH MODULE CONFIG + INFO TEXT
 // NO-CACHE HEADERS
 header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 header('Expires: 0');
-
 // CORS HEADERS
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
-
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
-
 error_reporting(0);
 ini_set('display_errors', 0);
-
 session_start();
 header('Content-Type: application/json');
 
@@ -84,8 +79,8 @@ if ($action === 'login') {
 
 // 2. Word Cloud: Submit Word
 if ($action === 'add_word') {
-    $word = strip_tags($_POST['word']);
-    $user = strip_tags($_POST['username']);
+    $word = strip_tags($_POST['word'] ?? '');
+    $user = strip_tags($_POST['username'] ?? '');
     if (strlen($word) > 0 && strlen($word) < 50) {
         $normalized = strtolower(trim($word));
         $words = readJsonLocked($dataDir . 'words.json');
@@ -102,8 +97,12 @@ if ($action === 'add_word') {
         }
         if (!$found) {
             $words[] = array(
-                'word' => $normalized, 'display' => $word, 'count' => 1,
-                'firstTime' => time(), 'lastTime' => time(), 'users' => array($user)
+                'word' => $normalized, 
+                'display' => $word, 
+                'count' => 1,
+                'firstTime' => time(), 
+                'lastTime' => time(), 
+                'users' => array($user)
             );
         }
         if (count($words) > 100) {
@@ -152,46 +151,46 @@ if ($action === 'emoji_vote') {
     $emoji = isset($_POST['emoji']) ? $_POST['emoji'] : '';
     $username = isset($_POST['username']) ? strip_tags($_POST['username']) : 'Anonymous';
     $validEmojis = array('done', 'unsure', 'pain', 'happy', 'help');
-    
+   
     if (!in_array($emoji, $validEmojis)) {
         echo json_encode(array('success' => false, 'message' => 'Invalid emoji'));
         exit;
     }
-    
+   
     $votes = readJsonLocked($dataDir . 'emoji_votes.json');
-    
+   
     $lastVoteTime = 0;
     foreach ($votes as $vote) {
         if (isset($vote['ip']) && $vote['ip'] === $ip && $vote['time'] > $lastVoteTime) {
             $lastVoteTime = $vote['time'];
         }
     }
-    
+   
     if ($lastVoteTime > 0 && (time() - $lastVoteTime) < 60) {
         $waitTime = 60 - (time() - $lastVoteTime);
         echo json_encode(array(
-            'success' => false, 
+            'success' => false,
             'message' => 'Please wait ' . $waitTime . ' seconds',
             'waitTime' => $waitTime
         ));
         exit;
     }
-    
+   
     $votes[] = array(
         'ip' => $ip,
-        'emoji' => $emoji, 
-        'time' => time(), 
+        'emoji' => $emoji,
+        'time' => time(),
         'lap' => getCurrentLap($dataDir),
         'username' => $username
     );
     writeJsonLocked($dataDir . 'emoji_votes.json', $votes);
-    
+   
     file_put_contents($dataDir . 'emoji_animation.json', json_encode(array(
         'emoji' => $emoji,
         'time' => time(),
         'lap' => getCurrentLap($dataDir)
     )));
-    
+   
     echo json_encode(array('success' => true, 'emoji' => $emoji));
     exit;
 }
@@ -200,29 +199,25 @@ if ($action === 'emoji_vote') {
 if ($action === 'get_emoji_stats') {
     $votes = readJsonLocked($dataDir . 'emoji_votes.json');
     $currentLap = getCurrentLap($dataDir);
-    
-    $allTime = array(
-        'done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0,
-        'total' => 0
-    );
-    
+   
+    $allTime = array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0);
     $currentLapStats = array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0);
-    
+   
     foreach ($votes as $vote) {
         $emoji = isset($vote['emoji']) ? $vote['emoji'] : '';
         $voteLap = isset($vote['lap']) ? $vote['lap'] : 1;
-        
+       
         if (isset($allTime[$emoji])) {
             $allTime[$emoji]++;
             $allTime['total']++;
         }
-        
+       
         if ($voteLap == $currentLap && isset($currentLapStats[$emoji])) {
             $currentLapStats[$emoji]++;
             $currentLapStats['total']++;
         }
     }
-    
+   
     echo json_encode(array(
         'success' => true,
         'allTime' => $allTime,
@@ -249,7 +244,7 @@ if ($action === 'get_emoji_animation') {
 // 8. EMOJI METER: Reset Votes
 if ($action === 'reset_emoji' && isset($_SESSION['is_admin'])) {
     $type = isset($_POST['type']) ? $_POST['type'] : 'all';
-    
+   
     if ($type === 'lap') {
         $laps = readJsonLocked($dataDir . 'emoji_laps.json');
         $currentLap = isset($laps['current']) ? $laps['current'] : 1;
@@ -271,7 +266,7 @@ if ($action === 'reset_emoji' && isset($_SESSION['is_admin'])) {
 if ($action === 'get_emoji_log' && isset($_SESSION['is_admin'])) {
     $votes = readJsonLocked($dataDir . 'emoji_votes.json');
     $log = array_reverse($votes);
-    
+   
     foreach ($log as &$entry) {
         $entry = array(
             'username' => isset($entry['username']) ? $entry['username'] : 'Anonymous',
@@ -280,9 +275,9 @@ if ($action === 'get_emoji_log' && isset($_SESSION['is_admin'])) {
             'lap' => isset($entry['lap']) ? $entry['lap'] : 1
         );
     }
-    
+   
     $log = array_slice($log, 0, 100);
-    
+   
     echo json_encode(array('success' => true, 'log' => $log));
     exit;
 }
@@ -291,9 +286,9 @@ if ($action === 'get_emoji_log' && isset($_SESSION['is_admin'])) {
 if ($action === 'delete_emoji_log' && isset($_SESSION['is_admin'])) {
     $index = isset($_POST['index']) ? intval($_POST['index']) : -1;
     $type = isset($_POST['type']) ? $_POST['type'] : 'single';
-    
+   
     $votes = readJsonLocked($dataDir . 'emoji_votes.json');
-    
+   
     if ($type === 'all') {
         writeJsonLocked($dataDir . 'emoji_votes.json', array());
         echo json_encode(array('success' => true, 'message' => 'All votes deleted'));
@@ -317,23 +312,23 @@ if ($action === 'delete_emoji_log' && isset($_SESSION['is_admin'])) {
 if ($action === 'log_user_login') {
     $ip = $_SERVER['REMOTE_ADDR'];
     $username = isset($_POST['username']) ? strip_tags($_POST['username']) : 'Anonymous';
-    
+   
     if (!$username || $username === 'Anonymous') {
         echo json_encode(array('success' => false, 'message' => 'Username required'));
         exit;
     }
-    
+   
     $users = readJsonLocked($dataDir . 'active_users.json');
-    
+   
     $users[$ip] = array(
         'username' => $username,
         'ip' => $ip,
         'loginTime' => time(),
         'lastActive' => time()
     );
-    
+   
     writeJsonLocked($dataDir . 'active_users.json', $users);
-    
+   
     echo json_encode(array('success' => true, 'count' => count($users)));
     exit;
 }
@@ -341,22 +336,22 @@ if ($action === 'log_user_login') {
 // 12. USER TRACKING: Get Unique User Count
 if ($action === 'get_user_count') {
     $users = readJsonLocked($dataDir . 'active_users.json');
-    
+   
     $activeUsers = array();
     $cutoffTime = time() - (24 * 60 * 60);
-    
+   
     foreach ($users as $ip => $userData) {
         if (isset($userData['lastActive']) && $userData['lastActive'] > $cutoffTime) {
             $activeUsers[$ip] = $userData;
         }
     }
-    
+   
     if (count($activeUsers) !== count($users)) {
         writeJsonLocked($dataDir . 'active_users.json', $activeUsers);
     }
-    
+   
     $uniqueCount = count($activeUsers);
-    
+   
     echo json_encode(array(
         'success' => true,
         'count' => $uniqueCount,
@@ -371,11 +366,11 @@ if ($action === 'upload_pdf' && isset($_SESSION['is_admin'])) {
         $allowed = array('pdf');
         $filename = $_FILES['pdf']['name'];
         $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-        
+       
         if (in_array($ext, $allowed)) {
             $newFilename = 'lesson_' . time() . '.' . $ext;
             $uploadPath = $dataDir . $newFilename;
-            
+           
             if (move_uploaded_file($_FILES['pdf']['tmp_name'], $uploadPath)) {
                 $pdfInfo = array(
                     'filename' => $newFilename,
@@ -384,7 +379,7 @@ if ($action === 'upload_pdf' && isset($_SESSION['is_admin'])) {
                     'uploadedBy' => 'admin'
                 );
                 writeJsonLocked($dataDir . 'lesson_pdf.json', $pdfInfo);
-                
+               
                 echo json_encode(array('success' => true, 'filename' => $newFilename));
             } else {
                 echo json_encode(array('success' => false, 'message' => 'Failed to save file'));
@@ -401,7 +396,7 @@ if ($action === 'upload_pdf' && isset($_SESSION['is_admin'])) {
 // 14. LESSON MODE: Get PDF Info
 if ($action === 'get_pdf_info') {
     $pdfInfo = readJsonLocked($dataDir . 'lesson_pdf.json');
-    
+   
     if (isset($pdfInfo['filename']) && file_exists($dataDir . $pdfInfo['filename'])) {
         echo json_encode(array(
             'success' => true,
@@ -419,7 +414,7 @@ if ($action === 'get_pdf_info') {
 // 15. LESSON MODE: Delete PDF
 if ($action === 'delete_pdf' && isset($_SESSION['is_admin'])) {
     $pdfInfo = readJsonLocked($dataDir . 'lesson_pdf.json');
-    
+   
     if (isset($pdfInfo['filename'])) {
         $filePath = $dataDir . $pdfInfo['filename'];
         if (file_exists($filePath)) {
@@ -433,20 +428,52 @@ if ($action === 'delete_pdf' && isset($_SESSION['is_admin'])) {
     exit;
 }
 
+// ==================== NEW: INFO TEXT MODULE ====================
+
+// Get Info Text
+if ($action === 'get_info_text') {
+    $info = readJsonLocked($dataDir . 'info_text.json');
+    echo json_encode(array(
+        'success' => true,
+        'text' => $info['text'] ?? ''
+    ));
+    exit;
+}
+
+// Save Info Text (Admin only)
+if ($action === 'save_info_text' && isset($_SESSION['is_admin'])) {
+    $text = isset($_POST['text']) ? trim($_POST['text']) : '';
+    $info = array('text' => $text, 'updated' => time());
+    $success = writeJsonLocked($dataDir . 'info_text.json', $info);
+    echo json_encode(array('success' => $success));
+    exit;
+}
+
 // 16. MODULES: Get Config
 if ($action === 'get_modules_config') {
     $config = readJsonLocked($dataDir . 'modules_config.json');
-    
+   
     if (empty($config)) {
         $config = array(
             'wordcloud' => true,
             'pdf_viewer' => false,
             'emoji_meter' => true,
-            'admin_panel' => true
+            'qr_link' => false,
+            'info_text' => false   // NEW
         );
         writeJsonLocked($dataDir . 'modules_config.json', $config);
+    } else {
+        // Ensure new field exists for backward compatibility
+        if (!isset($config['info_text'])) {
+            $config['info_text'] = false;
+            writeJsonLocked($dataDir . 'modules_config.json', $config);
+        }
+        if (!isset($config['qr_link'])) {
+            $config['qr_link'] = false;
+            writeJsonLocked($dataDir . 'modules_config.json', $config);
+        }
     }
-    
+   
     echo json_encode(array('success' => true, 'config' => $config));
     exit;
 }
@@ -454,21 +481,22 @@ if ($action === 'get_modules_config') {
 // 17. MODULES: Update Config
 if ($action === 'update_modules_config' && isset($_SESSION['is_admin'])) {
     $config = array(
-        'wordcloud' => isset($_POST['wordcloud']) ? $_POST['wordcloud'] === 'true' : false,
-        'pdf_viewer' => isset($_POST['pdf_viewer']) ? $_POST['pdf_viewer'] === 'true' : false,
+        'wordcloud'   => isset($_POST['wordcloud'])   ? $_POST['wordcloud']   === 'true' : false,
+        'pdf_viewer'  => isset($_POST['pdf_viewer'])  ? $_POST['pdf_viewer']  === 'true' : false,
         'emoji_meter' => isset($_POST['emoji_meter']) ? $_POST['emoji_meter'] === 'true' : false,
-        'admin_panel' => isset($_POST['admin_panel']) ? $_POST['admin_panel'] === 'true' : true
+        'qr_link'     => isset($_POST['qr_link'])     ? $_POST['qr_link']     === 'true' : false,
+        'info_text'   => isset($_POST['info_text'])   ? $_POST['info_text']   === 'true' : false   // NEW
     );
-    
+   
     writeJsonLocked($dataDir . 'modules_config.json', $config);
     echo json_encode(array('success' => true, 'config' => $config));
     exit;
 }
 
-// 18. Satisfaction: Vote
+// 18. Satisfaction: Vote (kept for compatibility)
 if ($action === 'vote') {
     $ip = $_SERVER['REMOTE_ADDR'];
-    $rating = intval($_POST['rating']);
+    $rating = intval($_POST['rating'] ?? 0);
     if ($rating < 1 || $rating > 5) {
         echo json_encode(array('success' => false, 'message' => 'Invalid rating'));
         exit;
