@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - DYNAMIC QR LINK -->
+<!-- File 11 of 8: modules.php - ROBUST QR + ALL FIXES -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,7 +8,7 @@
     <title>Modules - EduLite</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="js/qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="js/pdf.min.js"></script>
     <style>
         body {
             padding: 0; margin: 0;
@@ -301,8 +301,10 @@
             height: 70vh;
             background: #525659;
             border-radius: 10px;
-            overflow-y: scroll;
+            overflow-y: auto;
             position: relative;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
         }
         .pdf-controls {
             background: #333;
@@ -336,12 +338,15 @@
             flex-direction: column;
             align-items: center;
             gap: 0;
+            transform-origin: top center;
+            transition: transform 0.05s ease-out;
         }
         .pdf-page-canvas {
             display: block;
             margin: 0 auto 20px auto;
             box-shadow: 0 4px 8px rgba(0,0,0,0.3);
             max-width: 100%;
+            touch-action: pan-y;
         }
         .page-number-indicator {
             background: rgba(0,0,0,0.7);
@@ -745,24 +750,28 @@
     // PDF.js setup
     const PDFJS_VERSION = '3.11.174';
     
-    // DYNAMIC QR URL - Generated from current page location
-    function getCurrentModuleUrl() {
-        const protocol = window.location.protocol;
-        const hostname = window.location.hostname;
-        const pathname = window.location.pathname;
-        // Remove query params and hash, keep only the base module path
-        const cleanPath = pathname.split('?')[0].split('#')[0];
-        return protocol + '//' + hostname + cleanPath;
+    // Set worker source immediately when script tag loads
+    if (typeof pdfjsLib !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
     }
     
     function initPDFJS() {
         return new Promise((resolve) => {
             if (typeof pdfjsLib !== 'undefined') {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
-                console.log('PDF.js worker initialized');
+                if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
+                }
                 resolve();
             } else {
-                setTimeout(() => initPDFJS().then(resolve), 100);
+                const checkInterval = setInterval(() => {
+                    if (typeof pdfjsLib !== 'undefined') {
+                        clearInterval(checkInterval);
+                        if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+                            pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
+                        }
+                        resolve();
+                    }
+                }, 100);
             }
         });
     }
@@ -787,14 +796,24 @@
     let scrollTimeout = null;
     let pdfIsLoaded = false;
     
+    // PINCH ZOOM variables
+    let initialPinchDistance = 0;
+    let baseScale = 1.0;
+    let isPinching = false;
+    let currentPinchScale = 1.0;
+    
+    // LIVE USER COUNT variables
+    const USER_ACTIVITY_TIMEOUT = 60000;
+    let userActivity = {};
+    
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
     
     document.addEventListener('DOMContentLoaded', () => {
-        initPDFJS().then(() => console.log('PDF.js ready'));
-        
+        // === CRITICAL: Run admin check and basic init IMMEDIATELY ===
         if (username) {
             document.getElementById('user-badge').textContent = '👤 ' + username;
+            updateUserActivity(username);
             logUserLogin(username);
         } else {
             document.getElementById('login-modal').classList.remove('hidden');
@@ -803,19 +822,188 @@
         checkAdminStatus();
         loadModulesConfig();
         
-        pollInterval = setInterval(loadModulesConfig, 5000);
         setInterval(updateEmojiStats, 3000);
-        setInterval(updateUserCount, 5000);
+        setInterval(updateUserCount, 2000);
         setInterval(checkEmojiAnimation, 1000);
+        setInterval(cleanupInactiveUsers, 30000);
         
         window.addEventListener('beforeunload', savePdfPosition);
         window.addEventListener('pagehide', savePdfPosition);
+        
+        setupPinchZoom();
         
         setTimeout(() => {
             const input = document.getElementById('word-input');
             if (input) input.focus();
         }, 500);
+        
+        // === PDF.js init runs in parallel ===
+        initPDFJS().then(() => {
+            console.log('PDF.js ready');
+            if (modulesConfig.pdf_viewer) {
+                const pdfModule = document.getElementById('module-pdf');
+                if (pdfModule && !pdfModule.classList.contains('hidden')) {
+                    loadPdf();
+                }
+            }
+        });
+        
+        // === Poll for config changes ===
+        pollInterval = setInterval(() => {
+            fetch(API + '?action=get_modules_config')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const serverConfig = data.config;
+                        
+                        if (serverConfig.wordcloud !== undefined) {
+                            modulesConfig.wordcloud = serverConfig.wordcloud;
+                        }
+                        if (serverConfig.pdf_viewer !== undefined) {
+                            if (!modulesConfig.pdf_viewer && serverConfig.pdf_viewer) {
+                                modulesConfig.pdf_viewer = true;
+                                const pdfModule = document.getElementById('module-pdf');
+                                if (pdfModule && pdfModule.classList.contains('hidden')) {
+                                    if (typeof pdfjsLib !== 'undefined') {
+                                        loadPdf();
+                                    }
+                                }
+                            }
+                        }
+                        if (serverConfig.emoji_meter !== undefined) {
+                            modulesConfig.emoji_meter = serverConfig.emoji_meter;
+                        }
+                        if (serverConfig.qr_link !== undefined) {
+                            modulesConfig.qr_link = serverConfig.qr_link;
+                        }
+                        
+                        updateAdminButtons();
+                    }
+                })
+                .catch(err => console.error(err));
+        }, 5000);
     });
+    
+    // ============ LIVE USER COUNT ============
+    
+    function updateUserActivity(user) {
+        if (!user) return;
+        userActivity[user] = Date.now();
+        try {
+            localStorage.setItem('eduUserActivity_' + user, Date.now().toString());
+        } catch(e) {}
+    }
+    
+    function loadUserActivity() {
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('eduUserActivity_')) {
+                    const user = key.replace('eduUserActivity_', '');
+                    const timestamp = parseInt(localStorage.getItem(key));
+                    if (timestamp && !isNaN(timestamp)) {
+                        userActivity[user] = timestamp;
+                    }
+                }
+            }
+        } catch(e) {}
+    }
+    
+    function cleanupInactiveUsers() {
+        const now = Date.now();
+        for (const user in userActivity) {
+            if (now - userActivity[user] > USER_ACTIVITY_TIMEOUT * 2) {
+                delete userActivity[user];
+                try {
+                    localStorage.removeItem('eduUserActivity_' + user);
+                } catch(e) {}
+            }
+        }
+    }
+    
+    function getActiveUserCount() {
+        const now = Date.now();
+        let count = 0;
+        for (const user in userActivity) {
+            if (now - userActivity[user] <= USER_ACTIVITY_TIMEOUT) {
+                count++;
+            }
+        }
+        return count;
+    }
+    
+    // ============ PINCH ZOOM ============
+    
+    function setupPinchZoom() {
+        const viewer = document.getElementById('pdf-viewer');
+        if (!viewer) return;
+        
+        viewer.addEventListener('touchstart', handleTouchStart, { passive: true });
+        viewer.addEventListener('touchmove', handleTouchMove, { passive: false });
+        viewer.addEventListener('touchend', handleTouchEnd, { passive: true });
+        viewer.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    }
+    
+    function getPinchDistance(touches) {
+        if (touches.length < 2) return 0;
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    
+    function handleTouchStart(e) {
+        if (e.touches.length === 2 && pdfDoc) {
+            isPinching = true;
+            initialPinchDistance = getPinchDistance(e.touches);
+            baseScale = scale;
+            currentPinchScale = 1.0;
+        }
+    }
+    
+    function handleTouchMove(e) {
+        if (!isPinching || e.touches.length !== 2 || !pdfDoc) return;
+        
+        e.preventDefault();
+        
+        const currentDistance = getPinchDistance(e.touches);
+        if (initialPinchDistance > 0 && currentDistance > 0) {
+            currentPinchScale = currentDistance / initialPinchDistance;
+            const newScale = baseScale * currentPinchScale;
+            const clampedScale = Math.max(0.5, Math.min(3.0, newScale));
+            
+            const container = document.getElementById('pdf-pages');
+            if (container) {
+                container.style.transform = `scale(${currentPinchScale})`;
+            }
+            
+            const zoomLabel = document.getElementById('zoom-label');
+            if (zoomLabel) {
+                zoomLabel.textContent = 'Zoom: ' + (clampedScale * 100).toFixed(0) + '%';
+            }
+        }
+    }
+    
+    function handleTouchEnd(e) {
+        if (!isPinching || !pdfDoc) return;
+        
+        isPinching = false;
+        
+        const container = document.getElementById('pdf-pages');
+        if (container) {
+            container.style.transform = 'scale(1)';
+        }
+        
+        const finalScale = baseScale * currentPinchScale;
+        const clampedScale = Math.max(0.5, Math.min(3.0, finalScale));
+        
+        if (Math.abs(clampedScale - scale) > 0.1) {
+            scale = clampedScale;
+            savePdfPosition();
+            reloadPdfWithScale();
+        }
+    }
+    
+    // ============ CORE FUNCTIONS ============
     
     function goHome() { window.location.replace('index.php'); }
     
@@ -862,8 +1050,12 @@
         
         const pdfModule = document.getElementById('module-pdf');
         if (pdfModule) {
+            const wasHidden = pdfModule.classList.contains('hidden');
             pdfModule.classList.toggle('hidden', !modulesConfig.pdf_viewer);
-            if (modulesConfig.pdf_viewer) loadPdf();
+            
+            if (modulesConfig.pdf_viewer && wasHidden && typeof pdfjsLib !== 'undefined') {
+                loadPdf();
+            }
         }
         
         const emojiModule = document.getElementById('module-emoji');
@@ -1095,7 +1287,9 @@
         
         const pdfModule = document.getElementById('module-pdf');
         pdfModule.classList.remove('hidden');
-        loadPdf();
+        if (typeof pdfjsLib !== 'undefined') {
+            loadPdf();
+        }
         pdfModule.scrollIntoView({ behavior: 'smooth' });
     }
     
@@ -1195,6 +1389,17 @@
     }
     
     function loadPdf() {
+        if (typeof pdfjsLib === 'undefined') {
+            console.error('PDF.js not loaded yet, waiting...');
+            setTimeout(loadPdf, 500);
+            return;
+        }
+        
+        if (pdfIsLoaded && pdfDoc) {
+            console.log('PDF already loaded, skipping reload');
+            return;
+        }
+        
         fetch(API + '?action=get_pdf_info')
             .then(r => r.json())
             .then(data => {
@@ -1205,8 +1410,6 @@
                     return;
                 }
                 
-                if (pdfIsLoaded && data.filename === currentPdfFilename) return;
-                
                 currentPdfFilename = data.filename;
                 const viewer = document.getElementById('pdf-viewer');
                 
@@ -1214,6 +1417,8 @@
                 const savedScale = localStorage.getItem('pdfScale_' + currentPdfFilename);
                 
                 scale = savedScale ? parseFloat(savedScale) : 1.0;
+                console.log('Loading PDF with scale:', scale);
+                
                 renderedPages = {};
                 
                 const loadingTask = pdfjsLib.getDocument('data/' + currentPdfFilename);
@@ -1301,6 +1506,7 @@
         if (viewer && currentPdfFilename) {
             localStorage.setItem('pdfScroll_' + currentPdfFilename, viewer.scrollTop);
             localStorage.setItem('pdfScale_' + currentPdfFilename, scale);
+            console.log('Saved - scroll:', viewer.scrollTop, 'scale:', scale);
         }
     }
     
@@ -1321,9 +1527,16 @@
         const zoomLabel = document.getElementById('zoom-label');
         if (zoomLabel) zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
         
-        renderedPages = {};
+        console.log('Reloading PDF at scale:', scale);
+        
         const container = document.getElementById('pdf-pages');
-        if (container) container.innerHTML = '';
+        if (container) {
+            container.style.transform = 'scale(1)';
+        }
+        
+        renderedPages = {};
+        const pagesContainer = document.getElementById('pdf-pages');
+        if (pagesContainer) pagesContainer.innerHTML = '';
         
         renderAllPages().then(() => {
             if (viewer) viewer.scrollTop = Math.round(scrollRatio * viewer.scrollHeight);
@@ -1331,35 +1544,84 @@
         });
     }
     
-    // DYNAMIC QR GENERATION - Creates unique QR for current module instance
-    function generateQR() {
+    // ============ QR GENERATION - ROBUST VERSION ============
+    
+    function generateQR(retryCount = 0) {
         const container = document.getElementById('qr-code');
         const linkDisplay = document.getElementById('qr-link-display');
         if (!container) return;
         
-        // Generate dynamic URL from current page location
         const dynamicUrl = getCurrentModuleUrl();
-        
-        // Update the clickable link text
         const displayUrl = dynamicUrl.replace(/^https?:\/\//, '');
         linkDisplay.textContent = displayUrl;
         linkDisplay.href = dynamicUrl;
         
+        // Try to find the QR library - check multiple possible names
+        let QRConstructor = null;
+        
+        if (typeof QRCode !== 'undefined' && typeof QRCode === 'function') {
+            QRConstructor = QRCode;
+        } else if (typeof window.QRCode !== 'undefined' && typeof window.QRCode === 'function') {
+            QRConstructor = window.QRCode;
+        } else if (typeof qrcode !== 'undefined' && typeof qrcode === 'function') {
+            QRConstructor = qrcode;
+        } else if (typeof QRCodeGenerator !== 'undefined' && typeof QRCodeGenerator === 'function') {
+            QRConstructor = QRCodeGenerator;
+        }
+        
+        // If not found, retry up to 5 times with increasing delay
+        if (!QRConstructor) {
+            console.warn('QR library not ready (attempt ' + (retryCount + 1) + '/5)');
+            
+            if (retryCount < 5) {
+                container.innerHTML = '<p style="color: #666;">Loading QR... (' + (retryCount + 1) + ')</p>';
+                // Exponential backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms
+                setTimeout(() => generateQR(retryCount + 1), 200 * Math.pow(2, retryCount));
+            } else {
+                // After 5 retries, try loading from CDN as fallback
+                container.innerHTML = '<p style="color: #e74c3c;">QR failed. Loading fallback...</p>';
+                loadQRFromCDN(dynamicUrl);
+            }
+            return;
+        }
+        
+        // Library found - generate QR
         container.innerHTML = '';
         
         try {
-            new QRCode(container, {
+            // Try standard constructor first
+            new QRConstructor(container, {
                 text: dynamicUrl,
                 width: 300,
                 height: 300,
-                correctLevel: QRCode.CorrectLevel.H
+                correctLevel: QRConstructor.CorrectLevel ? QRConstructor.CorrectLevel.H : 3
             });
             console.log('QR generated for:', dynamicUrl);
         } catch(e) {
             console.error('QR generation error:', e);
-            container.innerHTML = '<p style="color: #e74c3c;">Error generating QR</p>';
+            container.innerHTML = '<p style="color: #e74c3c;">Error: ' + e.message + '</p>';
         }
     }
+    
+    // Fallback: Load QR library from CDN if local fails
+    function loadQRFromCDN(url) {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+        script.onload = () => {
+            console.log('QR library loaded from CDN');
+            // Retry generation after CDN load
+            setTimeout(() => generateQR(0), 100);
+        };
+        script.onerror = () => {
+            const container = document.getElementById('qr-code');
+            if (container) {
+                container.innerHTML = '<p style="color: #e74c3c;">❌ Could not load QR library</p>';
+            }
+        };
+        document.head.appendChild(script);
+    }
+    
+    // ============ OTHER FUNCTIONS ============
     
     function renderCloud() {
         fetch(API + '?action=get_words')
@@ -1432,6 +1694,8 @@
         const btn = event.target;
         btn.textContent = 'Sending...';
         btn.disabled = true;
+        
+        updateUserActivity(username);
         
         fetch(API, {
             method: 'POST',
@@ -1531,6 +1795,8 @@
         btn.disabled = true;
         lastVoteTime = now;
         
+        updateUserActivity(username);
+        
         fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -1558,12 +1824,17 @@
     }
     
     function updateUserCount() {
+        if (Object.keys(userActivity).length === 0) {
+            loadUserActivity();
+        }
+        
         fetch(API + '?action=get_user_count')
             .then(r => r.json())
             .then(data => {
                 const display = document.getElementById('user-count-display');
                 if (display && data.success) {
-                    display.textContent = '👥 ' + data.label;
+                    const activeCount = getActiveUserCount();
+                    display.textContent = '👥 ' + activeCount + ' active';
                 }
             });
     }
@@ -1596,6 +1867,8 @@
     }
     
     function logUserLogin(user) {
+        updateUserActivity(user);
+        
         fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -1610,6 +1883,7 @@
             localStorage.setItem('eduUsername', username);
             document.getElementById('user-badge').textContent = '👤 ' + username;
             document.getElementById('login-modal').classList.add('hidden');
+            updateUserActivity(username);
             logUserLogin(username);
         }
     }
