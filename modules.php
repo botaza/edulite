@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - EMOJI LOG FIXED AT BOTTOM -->
+<!-- File 11 of 8: modules.php - QR LINK CORRECTED -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -709,8 +709,8 @@
         <div id="qr-container">
             <div id="qr-code"></div>
         </div>
-        <a href="https://testingdomain.ru/edulite/modules.php" class="qr-link" target="_blank">
-            testingdomain.ru/edulite/modules.php
+        <a href="http://testingdomainru.ru/edulite/modules.php" class="qr-link" target="_blank">
+            testingdomainru.ru/edulite/modules.php
         </a>
     </div>
 </div>
@@ -744,6 +744,9 @@
 <script>
     // PDF.js setup
     const PDFJS_VERSION = '3.11.174';
+    
+    // CORRECTED QR URL - NO TYPO
+    const QR_URL = 'http://testingdomainru.ru/edulite/modules.php';
     
     function initPDFJS() {
         return new Promise((resolve) => {
@@ -1329,7 +1332,7 @@
         
         try {
             new QRCode(container, {
-                text: "https://testingdomain.ru/edulite/modules.php",
+                text: QR_URL,
                 width: 300,
                 height: 300,
                 correctLevel: QRCode.CorrectLevel.H
