@@ -297,18 +297,27 @@
             to { opacity: 1; transform: scale(1); }
         }
        
-        /* NEW SIMPLE PDF VIEWER STYLES */
+        /* PDF VIEWER STYLES - Simple & Mobile Reliable */
         .pdf-viewer-container {
             height: 70vh;
             background: #525659;
             border-radius: 10px;
-            overflow: hidden;
+            overflow-y: auto;
             position: relative;
         }
-        .pdf-embed {
+        .pdf-pages-container {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        .pdf-page-canvas {
+            display: block;
+            margin: 0 auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            max-width: 100%;
             width: 100%;
-            height: 100%;
-            border: none;
         }
         .no-pdf {
             display: flex; align-items: center; justify-content: center;
@@ -585,7 +594,7 @@
         </div>
     </div>
    
-    <!-- PDF Viewer Module - NOW USING NATIVE BROWSER EMBED -->
+    <!-- PDF Viewer Module -->
     <div class="module-section hidden" id="module-pdf">
         <h2>📄 PDF Viewer</h2>
         <div class="pdf-viewer-container" id="pdf-viewer">
@@ -691,18 +700,9 @@
 </div>
 
 <script>
-    // PDF.js is still loaded but no longer used for rendering
-    const PDFJS_VERSION = '3.11.174';
-   
-    // DYNAMIC QR URL
-    function getCurrentModuleUrl() {
-        const protocol = window.location.protocol;
-        const hostname = window.location.hostname;
-        const pathname = window.location.pathname;
-        const cleanPath = pathname.split('?')[0].split('#')[0];
-        return protocol + '//' + hostname + cleanPath;
-    }
-   
+    // PDF.js worker setup
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
     const API = 'api.php';
     let username = localStorage.getItem('eduUsername') || '';
     let isAdmin = false;
@@ -713,9 +713,10 @@
     let showUsernamesMode = false;
     let showEmojiLogMode = false;
    
-    // PDF variables (simplified)
+    // PDF variables
     let currentPdfFilename = '';
-   
+    let pdfDoc = null;
+
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
    
@@ -1066,6 +1067,7 @@
                         }
                        
                         currentPdfFilename = '';
+                        pdfDoc = null;
                         viewPdf();
                         updateAdminPanel();
                     } else {
@@ -1094,6 +1096,7 @@
                     if (data.success) {
                         alert('✅ PDF deleted');
                         currentPdfFilename = '';
+                        pdfDoc = null;
                         const viewer = document.getElementById('pdf-viewer');
                         if (viewer) {
                             viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
@@ -1104,34 +1107,52 @@
         }
     }
    
-    function loadPdf() {
+    async function loadPdf() {
+        const viewer = document.getElementById('pdf-viewer');
+        
         fetch(API + '?action=get_pdf_info')
             .then(r => r.json())
-            .then(data => {
+            .then(async data => {
                 if (!data.success || !data.hasPdf) {
-                    const viewer = document.getElementById('pdf-viewer');
                     viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
                     return;
                 }
-               
-                if (currentPdfFilename === data.filename) return;
-               
+
+                if (currentPdfFilename === data.filename && pdfDoc) return;
+
                 currentPdfFilename = data.filename;
-                const viewer = document.getElementById('pdf-viewer');
-               
-                viewer.innerHTML = `
-                    <embed 
-                        src="data/${currentPdfFilename}#toolbar=1&navpanes=0&scrollbar=1" 
-                        type="application/pdf" 
-                        class="pdf-embed"
-                        id="pdf-embed"
-                    >
-                `;
+                viewer.innerHTML = '<div class="pdf-pages-container" id="pdf-pages"></div>';
+
+                try {
+                    const loadingTask = pdfjsLib.getDocument('data/' + currentPdfFilename);
+                    pdfDoc = await loadingTask.promise;
+
+                    const container = document.getElementById('pdf-pages');
+                    container.innerHTML = '';
+
+                    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                        const page = await pdfDoc.getPage(pageNum);
+                        const scale = 1.5;                    // good balance for mobile readability
+                        const viewport = page.getViewport({ scale: scale });
+
+                        const canvas = document.createElement('canvas');
+                        canvas.className = 'pdf-page-canvas';
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+
+                        const context = canvas.getContext('2d');
+                        await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+                        container.appendChild(canvas);
+                    }
+                } catch (err) {
+                    console.error('PDF render error:', err);
+                    viewer.innerHTML = `<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p><p style="font-size:14px;">${err.message || 'Unknown error'}</p></div></div>`;
+                }
             })
             .catch(err => {
                 console.error('PDF info error:', err);
-                const viewer = document.getElementById('pdf-viewer');
-                viewer.innerHTML = `<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p></div></div>`;
+                viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p></div></div>';
             });
     }
    
@@ -1155,10 +1176,19 @@
                 height: 300,
                 correctLevel: QRCode.CorrectLevel.H
             });
+            console.log('QR generated for:', dynamicUrl);
         } catch(e) {
             console.error('QR generation error:', e);
             container.innerHTML = '<p style="color: #e74c3c;">Error generating QR</p>';
         }
+    }
+   
+    function getCurrentModuleUrl() {
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        const pathname = window.location.pathname;
+        const cleanPath = pathname.split('?')[0].split('#')[0];
+        return protocol + '//' + hostname + cleanPath;
     }
    
     function renderCloud() {
