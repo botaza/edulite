@@ -1,4 +1,4 @@
-<!-- File 11 of 8: modules.php - DYNAMIC QR LINK -->
+<!-- File 11 of 8: modules.php - LIVE USER COUNT + PINCH ZOOM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,6 +14,7 @@
             padding: 0; margin: 0;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            touch-action: pan-x pan-y; /* Allow panning but prevent browser zoom */
         }
         .game-container { max-width: 1200px; margin: 0 auto; padding: 15px; }
         .game-header {
@@ -303,6 +304,7 @@
             border-radius: 10px;
             overflow-y: scroll;
             position: relative;
+            touch-action: pan-x pan-y; /* Allow panning but prevent browser zoom */
         }
         .pdf-controls {
             background: #333;
@@ -342,6 +344,7 @@
             margin: 0 auto 20px auto;
             box-shadow: 0 4px 8px rgba(0,0,0,0.3);
             max-width: 100%;
+            touch-action: none; /* Allow pinch zoom on PDF */
         }
         .page-number-indicator {
             background: rgba(0,0,0,0.7);
@@ -750,7 +753,6 @@
         const protocol = window.location.protocol;
         const hostname = window.location.hostname;
         const pathname = window.location.pathname;
-        // Remove query params and hash, keep only the base module path
         const cleanPath = pathname.split('?')[0].split('#')[0];
         return protocol + '//' + hostname + cleanPath;
     }
@@ -787,6 +789,15 @@
     let scrollTimeout = null;
     let pdfIsLoaded = false;
     
+    // PINCH ZOOM variables
+    let initialPinchDistance = 0;
+    let initialPinchScale = 1.0;
+    let isPinching = false;
+    
+    // LIVE USER COUNT variables
+    const USER_ACTIVITY_TIMEOUT = 60000; // 1 minute in ms
+    let userActivity = {}; // { username: lastActivityTimestamp }
+    
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
     
@@ -795,6 +806,7 @@
         
         if (username) {
             document.getElementById('user-badge').textContent = '👤 ' + username;
+            updateUserActivity(username);
             logUserLogin(username);
         } else {
             document.getElementById('login-modal').classList.remove('hidden');
@@ -805,17 +817,136 @@
         
         pollInterval = setInterval(loadModulesConfig, 5000);
         setInterval(updateEmojiStats, 3000);
-        setInterval(updateUserCount, 5000);
+        setInterval(updateUserCount, 2000); // Update user count more frequently
         setInterval(checkEmojiAnimation, 1000);
+        setInterval(cleanupInactiveUsers, 30000); // Clean up every 30s
         
         window.addEventListener('beforeunload', savePdfPosition);
         window.addEventListener('pagehide', savePdfPosition);
+        
+        // Setup pinch zoom for PDF viewer
+        setupPinchZoom();
         
         setTimeout(() => {
             const input = document.getElementById('word-input');
             if (input) input.focus();
         }, 500);
     });
+    
+    // ============ LIVE USER COUNT FUNCTIONS ============
+    
+    // Update user's last activity timestamp
+    function updateUserActivity(user) {
+        if (!user) return;
+        userActivity[user] = Date.now();
+        // Also save to localStorage for persistence across page reloads
+        try {
+            localStorage.setItem('eduUserActivity_' + user, Date.now().toString());
+        } catch(e) {}
+    }
+    
+    // Load user activity from localStorage on page load
+    function loadUserActivity() {
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('eduUserActivity_')) {
+                    const user = key.replace('eduUserActivity_', '');
+                    const timestamp = parseInt(localStorage.getItem(key));
+                    if (timestamp && !isNaN(timestamp)) {
+                        userActivity[user] = timestamp;
+                    }
+                }
+            }
+        } catch(e) {}
+    }
+    
+    // Clean up users inactive for more than 1 minute
+    function cleanupInactiveUsers() {
+        const now = Date.now();
+        for (const user in userActivity) {
+            if (now - userActivity[user] > USER_ACTIVITY_TIMEOUT * 2) {
+                // Remove from memory and localStorage if very old
+                delete userActivity[user];
+                try {
+                    localStorage.removeItem('eduUserActivity_' + user);
+                } catch(e) {}
+            }
+        }
+    }
+    
+    // Count only active users (activity within last 60 seconds)
+    function getActiveUserCount() {
+        const now = Date.now();
+        let count = 0;
+        for (const user in userActivity) {
+            if (now - userActivity[user] <= USER_ACTIVITY_TIMEOUT) {
+                count++;
+            }
+        }
+        return count;
+    }
+    
+    // ============ PINCH ZOOM FUNCTIONS ============
+    
+    function setupPinchZoom() {
+        const viewer = document.getElementById('pdf-viewer');
+        if (!viewer) return;
+        
+        // Prevent default touch actions that interfere with pinch
+        viewer.addEventListener('touchstart', handleTouchStart, { passive: false });
+        viewer.addEventListener('touchmove', handleTouchMove, { passive: false });
+        viewer.addEventListener('touchend', handleTouchEnd, { passive: false });
+        viewer.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    }
+    
+    function getPinchDistance(touches) {
+        if (touches.length < 2) return 0;
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    
+    function handleTouchStart(e) {
+        if (e.touches.length === 2 && pdfDoc) {
+            e.preventDefault();
+            isPinching = true;
+            initialPinchDistance = getPinchDistance(e.touches);
+            initialPinchScale = scale;
+        }
+    }
+    
+    function handleTouchMove(e) {
+        if (!isPinching || e.touches.length < 2 || !pdfDoc) return;
+        e.preventDefault();
+        
+        const currentDistance = getPinchDistance(e.touches);
+        if (initialPinchDistance > 0 && currentDistance > 0) {
+            const newScale = initialPinchScale * (currentDistance / initialPinchDistance);
+            // Clamp scale between 0.5 and 3.0
+            const clampedScale = Math.max(0.5, Math.min(3.0, newScale));
+            
+            if (Math.abs(clampedScale - scale) > 0.05) { // Only update if significant change
+                scale = clampedScale;
+                // Update zoom label if visible
+                const zoomLabel = document.getElementById('zoom-label');
+                if (zoomLabel) {
+                    zoomLabel.textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
+                }
+            }
+        }
+    }
+    
+    function handleTouchEnd(e) {
+        if (isPinching && pdfDoc) {
+            e.preventDefault();
+            isPinching = false;
+            // Apply the new scale by re-rendering
+            reloadPdfWithScale();
+        }
+    }
+    
+    // ============ CORE FUNCTIONS ============
     
     function goHome() { window.location.replace('index.php'); }
     
@@ -1331,16 +1462,13 @@
         });
     }
     
-    // DYNAMIC QR GENERATION - Creates unique QR for current module instance
+    // DYNAMIC QR GENERATION
     function generateQR() {
         const container = document.getElementById('qr-code');
         const linkDisplay = document.getElementById('qr-link-display');
         if (!container) return;
         
-        // Generate dynamic URL from current page location
         const dynamicUrl = getCurrentModuleUrl();
-        
-        // Update the clickable link text
         const displayUrl = dynamicUrl.replace(/^https?:\/\//, '');
         linkDisplay.textContent = displayUrl;
         linkDisplay.href = dynamicUrl;
@@ -1432,6 +1560,9 @@
         const btn = event.target;
         btn.textContent = 'Sending...';
         btn.disabled = true;
+        
+        // Update user activity
+        updateUserActivity(username);
         
         fetch(API, {
             method: 'POST',
@@ -1531,6 +1662,9 @@
         btn.disabled = true;
         lastVoteTime = now;
         
+        // Update user activity
+        updateUserActivity(username);
+        
         fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -1558,12 +1692,19 @@
     }
     
     function updateUserCount() {
+        // Load activity from localStorage on first call
+        if (Object.keys(userActivity).length === 0) {
+            loadUserActivity();
+        }
+        
         fetch(API + '?action=get_user_count')
             .then(r => r.json())
             .then(data => {
                 const display = document.getElementById('user-count-display');
                 if (display && data.success) {
-                    display.textContent = '👥 ' + data.label;
+                    // Use active user count instead of server count
+                    const activeCount = getActiveUserCount();
+                    display.textContent = '👥 ' + activeCount + ' active';
                 }
             });
     }
@@ -1596,6 +1737,9 @@
     }
     
     function logUserLogin(user) {
+        // Update activity on login
+        updateUserActivity(user);
+        
         fetch(API, {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -1610,6 +1754,7 @@
             localStorage.setItem('eduUsername', username);
             document.getElementById('user-badge').textContent = '👤 ' + username;
             document.getElementById('login-modal').classList.add('hidden');
+            updateUserActivity(username);
             logUserLogin(username);
         }
     }
