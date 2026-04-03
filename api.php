@@ -15,15 +15,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 error_reporting(0);
 ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/data/upload_errors.log'); // Debug log
 session_start();
 header('Content-Type: application/json');
 
 $dataDir = __DIR__ . '/data/';
 $adminPassHash = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
 
-// Ensure data directory exists
+// Ensure data directory exists and is writable
 if (!file_exists($dataDir)) {
-    mkdir($dataDir, 0777, true);
+    mkdir($dataDir, 0755, true);
+}
+// Quick write-permission check
+if (!is_writable($dataDir)) {
+    error_log("CRITICAL: data/ directory is not writable: " . $dataDir);
 }
 
 // File locking helper functions
@@ -360,36 +366,105 @@ if ($action === 'get_user_count') {
     exit;
 }
 
-// 13. LESSON MODE: Upload PDF
+// ============================================================================
+// 13. LESSON MODE: Upload PDF - HARDENED VERSION
+// ============================================================================
 if ($action === 'upload_pdf' && isset($_SESSION['is_admin'])) {
-    if (isset($_FILES['pdf']) && $_FILES['pdf']['error'] === 0) {
-        $allowed = array('pdf');
-        $filename = $_FILES['pdf']['name'];
-        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-       
-        if (in_array($ext, $allowed)) {
-            $newFilename = 'lesson_' . time() . '.' . $ext;
-            $uploadPath = $dataDir . $newFilename;
-           
-            if (move_uploaded_file($_FILES['pdf']['tmp_name'], $uploadPath)) {
-                $pdfInfo = array(
-                    'filename' => $newFilename,
-                    'original' => $filename,
-                    'uploadTime' => time(),
-                    'uploadedBy' => 'admin'
-                );
-                writeJsonLocked($dataDir . 'lesson_pdf.json', $pdfInfo);
-               
-                echo json_encode(array('success' => true, 'filename' => $newFilename));
-            } else {
-                echo json_encode(array('success' => false, 'message' => 'Failed to save file'));
-            }
-        } else {
-            echo json_encode(array('success' => false, 'message' => 'Only PDF files allowed'));
-        }
-    } else {
-        echo json_encode(array('success' => false, 'message' => 'No file uploaded'));
+    // --- Step 1: Check PHP upload errors ---
+    if (!isset($_FILES['pdf']) || $_FILES['pdf']['error'] !== UPLOAD_ERR_OK) {
+        $uploadErrors = [
+            UPLOAD_ERR_INI_SIZE   => 'File exceeds server upload limit (upload_max_filesize)',
+            UPLOAD_ERR_FORM_SIZE  => 'File exceeds form limit (MAX_FILE_SIZE)',
+            UPLOAD_ERR_PARTIAL    => 'File was only partially uploaded',
+            UPLOAD_ERR_NO_FILE    => 'No file was sent',
+            UPLOAD_ERR_NO_TMP_DIR => 'Missing temporary folder on server',
+            UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
+            UPLOAD_ERR_EXTENSION  => 'Upload stopped by PHP extension'
+        ];
+        $errorCode = $_FILES['pdf']['error'] ?? -1;
+        $errorMsg = $uploadErrors[$errorCode] ?? 'Unknown upload error (code: ' . $errorCode . ')';
+        error_log("PDF upload failed - Error $errorCode: $errorMsg");
+        echo json_encode(['success' => false, 'message' => $errorMsg]);
+        exit;
     }
+
+    // --- Step 2: Validate extension ---
+    $originalName = basename($_FILES['pdf']['name']);
+    $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+    if ($ext !== 'pdf') {
+        echo json_encode(['success' => false, 'message' => 'Only PDF files are allowed']);
+        exit;
+    }
+
+    // --- Step 3: Validate MIME type using fileinfo ---
+    if (!function_exists('finfo_open')) {
+        error_log("WARNING: PHP fileinfo extension not enabled - skipping MIME validation");
+    } else {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $_FILES['pdf']['tmp_name']);
+        finfo_close($finfo);
+        // Accept standard PDF MIME types
+        if (!in_array($mimeType, ['application/pdf', 'application/x-pdf', 'application/acrobat'])) {
+            error_log("PDF upload rejected - Invalid MIME type: $mimeType");
+            echo json_encode(['success' => false, 'message' => 'File is not a valid PDF (MIME: ' . $mimeType . ')']);
+            exit;
+        }
+    }
+
+    // --- Step 4: Validate PDF magic bytes (%PDF-) ---
+    $handle = fopen($_FILES['pdf']['tmp_name'], 'rb');
+    if (!$handle) {
+        echo json_encode(['success' => false, 'message' => 'Could not read uploaded file']);
+        exit;
+    }
+    $header = fread($handle, 8);
+    fclose($handle);
+    if (strlen($header) < 4 || substr($header, 0, 4) !== '%PDF') {
+        error_log("PDF upload rejected - Invalid magic bytes: " . bin2hex(substr($header, 0, 8)));
+        echo json_encode(['success' => false, 'message' => 'File is corrupted or not a valid PDF']);
+        exit;
+    }
+
+    // --- Step 5: Generate unique, safe filename ---
+    $newFilename = 'lesson_' . time() . '_' . bin2hex(random_bytes(4)) . '.pdf';
+    $uploadPath = $dataDir . $newFilename;
+
+    // --- Step 6: Move and verify file ---
+    if (!move_uploaded_file($_FILES['pdf']['tmp_name'], $uploadPath)) {
+        error_log("move_uploaded_file failed for: $originalName");
+        echo json_encode(['success' => false, 'message' => 'Server failed to save the file']);
+        exit;
+    }
+
+    // Post-upload integrity checks
+    $fileSize = filesize($uploadPath);
+    if ($fileSize < 100) { // PDFs are rarely <100 bytes
+        unlink($uploadPath);
+        echo json_encode(['success' => false, 'message' => 'Uploaded file is too small to be valid']);
+        exit;
+    }
+
+    // Re-check magic bytes on saved file (defense in depth)
+    $savedHeader = file_get_contents($uploadPath, false, null, 0, 5);
+    if (substr($savedHeader, 0, 4) !== '%PDF') {
+        unlink($uploadPath);
+        echo json_encode(['success' => false, 'message' => 'Saved file failed integrity check']);
+        exit;
+    }
+
+    // --- Step 7: Save metadata ---
+    $pdfInfo = [
+        'filename'   => $newFilename,
+        'original'   => $originalName,
+        'uploadTime' => time(),
+        'uploadedBy' => 'admin',
+        'size'       => $fileSize,
+        'mime'       => $mimeType ?? 'unknown'
+    ];
+    writeJsonLocked($dataDir . 'lesson_pdf.json', $pdfInfo);
+
+    error_log("PDF uploaded successfully: $originalName ($fileSize bytes) -> $newFilename");
+    echo json_encode(['success' => true, 'filename' => $newFilename, 'size' => $fileSize]);
     exit;
 }
 
@@ -403,7 +478,8 @@ if ($action === 'get_pdf_info') {
             'hasPdf' => true,
             'filename' => $pdfInfo['filename'],
             'original' => $pdfInfo['original'] ?: 'Lesson.pdf',
-            'uploadTime' => $pdfInfo['uploadTime'] ?: 0
+            'uploadTime' => $pdfInfo['uploadTime'] ?: 0,
+            'size' => $pdfInfo['size'] ?? filesize($dataDir . $pdfInfo['filename'])
         ));
     } else {
         echo json_encode(array('success' => true, 'hasPdf' => false));
@@ -418,7 +494,9 @@ if ($action === 'delete_pdf' && isset($_SESSION['is_admin'])) {
     if (isset($pdfInfo['filename'])) {
         $filePath = $dataDir . $pdfInfo['filename'];
         if (file_exists($filePath)) {
-            unlink($filePath);
+            if (!unlink($filePath)) {
+                error_log("Failed to delete PDF file: $filePath");
+            }
         }
         writeJsonLocked($dataDir . 'lesson_pdf.json', array());
         echo json_encode(array('success' => true));
@@ -459,11 +537,10 @@ if ($action === 'get_modules_config') {
             'pdf_viewer' => false,
             'emoji_meter' => true,
             'qr_link' => false,
-            'info_text' => false   // NEW
+            'info_text' => false
         );
         writeJsonLocked($dataDir . 'modules_config.json', $config);
     } else {
-        // Ensure new field exists for backward compatibility
         if (!isset($config['info_text'])) {
             $config['info_text'] = false;
             writeJsonLocked($dataDir . 'modules_config.json', $config);
@@ -485,7 +562,7 @@ if ($action === 'update_modules_config' && isset($_SESSION['is_admin'])) {
         'pdf_viewer'  => isset($_POST['pdf_viewer'])  ? $_POST['pdf_viewer']  === 'true' : false,
         'emoji_meter' => isset($_POST['emoji_meter']) ? $_POST['emoji_meter'] === 'true' : false,
         'qr_link'     => isset($_POST['qr_link'])     ? $_POST['qr_link']     === 'true' : false,
-        'info_text'   => isset($_POST['info_text'])   ? $_POST['info_text']   === 'true' : false   // NEW
+        'info_text'   => isset($_POST['info_text'])   ? $_POST['info_text']   === 'true' : false
     );
    
     writeJsonLocked($dataDir . 'modules_config.json', $config);
