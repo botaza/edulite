@@ -1,4 +1,3 @@
-<!-- File 11 of 8: modules.php - DYNAMIC QR LINK -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -438,37 +437,55 @@
        
         .hidden { display: none !important; }
        
-        /* QR Code */
+        /* QR Code - RESPONSIVE FIX */
         .qr-section {
             background: rgba(255,255,255,0.95);
             border-radius: 15px;
-            padding: 30px;
+            padding: 20px 15px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
             margin-bottom: 15px;
             text-align: center;
+            width: 100%;
+            box-sizing: border-box;
         }
         .qr-section h2 {
             color: #667eea;
-            margin: 0 0 20px 0;
-            font-size: 22px;
+            margin: 0 0 15px 0;
+            font-size: 20px;
         }
         #qr-container {
             display: flex;
             justify-content: center;
             align-items: center;
-            margin: 20px 0;
+            margin: 15px 0;
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
         }
         #qr-code {
-            width: 300px;
-            height: 300px;
+            width: 100%;
+            max-width: 300px;
+            height: auto;
+            aspect-ratio: 1/1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #qr-code img,
+        #qr-code canvas {
+            max-width: 100%;
+            height: auto !important;
+            display: block;
+            image-rendering: pixelated;
         }
         .qr-link {
             display: block;
-            margin-top: 15px;
+            margin-top: 12px;
             color: #667eea;
             font-weight: 600;
-            font-size: 14px;
+            font-size: 13px;
             word-break: break-all;
+            padding: 0 10px;
         }
        
         @media (max-width: 480px) {
@@ -480,7 +497,8 @@
             .emoji-stats { gap: 10px; }
             .emoji-stat { min-width: 60px; padding: 8px 12px; }
             .admin-grid { grid-template-columns: 1fr; }
-            #qr-code { width: 200px; height: 200px; }
+            #qr-code { max-width: 220px; }
+            .qr-link { font-size: 12px; }
             .emoji-log-section { max-height: 50vh; }
             .emoji-log-table { font-size: 11px; }
         }
@@ -1343,10 +1361,21 @@
         linkDisplay.href = dynamicUrl;
        
         container.innerHTML = '';
+        
+        // Calculate responsive size based on container width
+        const containerWidth = container.clientWidth || 220;
+        const qrSize = Math.min(containerWidth, 300); // Max 300px
+        
         try {
-            new QRCode(container, { text: dynamicUrl, width: 300, height: 300, correctLevel: QRCode.CorrectLevel.H });
+            new QRCode(container, { 
+                text: dynamicUrl, 
+                width: qrSize, 
+                height: qrSize, 
+                correctLevel: QRCode.CorrectLevel.H 
+            });
         } catch(e) {
-            container.innerHTML = '<p style="color: #e74c3c;">Error generating QR</p>';
+            container.innerHTML = '<p style="color: #e74c3c; font-size: 14px;">Error generating QR</p>';
+            console.error('QR generation error:', e);
         }
     }
    
