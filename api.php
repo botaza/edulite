@@ -68,6 +68,43 @@ function getCurrentLap($dataDir) {
     return isset($laps['current']) ? $laps['current'] : 1;
 }
 
+// ============================================================================
+// NEW: Persistent Emoji Totals Helpers (for accumulating lap-by-lap stats)
+// ============================================================================
+
+// Helper: Get persistent emoji totals (all-time accumulated across completed laps)
+function getEmojiTotals($dataDir) {
+    $file = $dataDir . 'emoji_totals.json';
+    if (!file_exists($file)) {
+        return array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0, 'lapsCompleted' => 0);
+    }
+    $data = readJsonLocked($file);
+    // Merge with defaults to ensure all keys exist
+    return array_merge(
+        array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0, 'lapsCompleted' => 0),
+        $data
+    );
+}
+
+// Helper: Save persistent emoji totals
+function saveEmojiTotals($dataDir, $totals) {
+    return writeJsonLocked($dataDir . 'emoji_totals.json', $totals);
+}
+
+// Helper: Calculate stats for a specific lap from votes array
+function getCurrentLapStats($votes, $targetLap) {
+    $stats = array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0);
+    foreach ($votes as $vote) {
+        $emoji = isset($vote['emoji']) ? $vote['emoji'] : '';
+        $voteLap = isset($vote['lap']) ? $vote['lap'] : 1;
+        if ($voteLap == $targetLap && isset($stats[$emoji])) {
+            $stats[$emoji]++;
+            $stats['total']++;
+        }
+    }
+    return $stats;
+}
+
 // Get Action
 $action = isset($_POST['action']) ? $_POST['action'] : (isset($_GET['action']) ? $_GET['action'] : '');
 
@@ -201,33 +238,21 @@ if ($action === 'emoji_vote') {
     exit;
 }
 
-// 6. EMOJI METER: Get Stats
+// 6. EMOJI METER: Get Stats - UPDATED to return persistent all-time totals
 if ($action === 'get_emoji_stats') {
     $votes = readJsonLocked($dataDir . 'emoji_votes.json');
     $currentLap = getCurrentLap($dataDir);
-   
-    $allTime = array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0);
-    $currentLapStats = array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0);
-   
-    foreach ($votes as $vote) {
-        $emoji = isset($vote['emoji']) ? $vote['emoji'] : '';
-        $voteLap = isset($vote['lap']) ? $vote['lap'] : 1;
-       
-        if (isset($allTime[$emoji])) {
-            $allTime[$emoji]++;
-            $allTime['total']++;
-        }
-       
-        if ($voteLap == $currentLap && isset($currentLapStats[$emoji])) {
-            $currentLapStats[$emoji]++;
-            $currentLapStats['total']++;
-        }
-    }
-   
+    
+    // Get persistent all-time totals (accumulated from completed laps)
+    $allTime = getEmojiTotals($dataDir);
+    
+    // Calculate current lap stats from live votes
+    $currentLapStats = getCurrentLapStats($votes, $currentLap);
+    
     echo json_encode(array(
         'success' => true,
-        'allTime' => $allTime,
-        'currentLap' => $currentLapStats,
+        'allTime' => $allTime,           // Persistent accumulated totals
+        'currentLap' => $currentLapStats, // Live stats for current lap only
         'lapNumber' => $currentLap
     ));
     exit;
@@ -247,19 +272,52 @@ if ($action === 'get_emoji_animation') {
     exit;
 }
 
-// 8. EMOJI METER: Reset Votes
+// 8. EMOJI METER: Reset Votes / New Lap - UPDATED to accumulate totals
 if ($action === 'reset_emoji' && isset($_SESSION['is_admin'])) {
     $type = isset($_POST['type']) ? $_POST['type'] : 'all';
    
     if ($type === 'lap') {
+        // Get current lap and votes
         $laps = readJsonLocked($dataDir . 'emoji_laps.json');
         $currentLap = isset($laps['current']) ? $laps['current'] : 1;
+        $votes = readJsonLocked($dataDir . 'emoji_votes.json');
+        
+        // Calculate stats for the lap that's ending
+        $lapStats = getCurrentLapStats($votes, $currentLap);
+        
+        // Add to persistent all-time totals
+        $totals = getEmojiTotals($dataDir);
+        foreach (array('done', 'unsure', 'pain', 'happy', 'help') as $emoji) {
+            $totals[$emoji] += $lapStats[$emoji];
+        }
+        $totals['total'] += $lapStats['total'];
+        $totals['lapsCompleted'] = ($totals['lapsCompleted'] ?? 0) + 1;
+        saveEmojiTotals($dataDir, $totals);
+        
+        // Increment lap counter and save history
         $laps['current'] = $currentLap + 1;
         if (!isset($laps['history'])) $laps['history'] = array();
-        $laps['history'][] = array('lap' => $laps['current'], 'time' => time());
+        $laps['history'][] = array(
+            'lap' => $currentLap, 
+            'time' => time(), 
+            'stats' => $lapStats
+        );
         writeJsonLocked($dataDir . 'emoji_laps.json', $laps);
-        echo json_encode(array('success' => true, 'lap' => $laps['current']));
+        
+        echo json_encode(array(
+            'success' => true, 
+            'lap' => $laps['current'],
+            'lapStats' => $lapStats,
+            'allTime' => $totals
+        ));
     } else if ($type === 'all') {
+        // Option: Preserve totals when resetting all votes (comment next block to reset totals too)
+        // If you want totals to reset when "Reset All" is pressed, remove/comment this block:
+        $totals = getEmojiTotals($dataDir);
+        // Keep totals as-is, or reset them by uncommenting below:
+        // $totals = array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0, 'lapsCompleted' => 0);
+        saveEmojiTotals($dataDir, $totals);
+        
         writeJsonLocked($dataDir . 'emoji_votes.json', array());
         $laps = array('current' => 1, 'history' => array());
         writeJsonLocked($dataDir . 'emoji_laps.json', $laps);

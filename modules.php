@@ -1082,6 +1082,8 @@
                 document.getElementById('admin-panel').classList.add('visible');
                 btn.classList.add('active');
                 btn.textContent = '📊 Stats ON';
+                // Refresh stats when opening panel
+                updateAdminPanel();
             } else {
                 statsCard.classList.add('hidden');
                 document.getElementById('admin-panel').classList.add('hidden');
@@ -1090,6 +1092,68 @@
                 btn.textContent = '📊 Stats';
             }
         }
+    }
+
+    // ========================================================================
+    // EMOJI STATS PATCH: Updated to handle persistent all-time totals
+    // ========================================================================
+   
+    function updateEmojiStats() {
+        fetch(API + '?action=get_emoji_stats&t=' + Date.now()) // cache-bust
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) return;
+                
+                // Update PUBLIC current lap stats (what all users see)
+                const lap = data.currentLap || {};
+                document.getElementById('stat-done').textContent = lap.done || 0;
+                document.getElementById('stat-unsure').textContent = lap.unsure || 0;
+                document.getElementById('stat-pain').textContent = lap.pain || 0;
+                document.getElementById('stat-happy').textContent = lap.happy || 0;
+                document.getElementById('stat-help').textContent = lap.help || 0;
+                
+                // Update ADMIN all-time stats (persistent accumulated totals)
+                if (isAdmin) {
+                    const allTime = data.allTime || {};
+                    document.getElementById('admin-stat-done').textContent = allTime.done || 0;
+                    document.getElementById('admin-stat-unsure').textContent = allTime.unsure || 0;
+                    document.getElementById('admin-stat-pain').textContent = allTime.pain || 0;
+                    document.getElementById('admin-stat-happy').textContent = allTime.happy || 0;
+                    document.getElementById('admin-stat-help').textContent = allTime.help || 0;
+                    document.getElementById('admin-total-votes').textContent = allTime.total || 0;
+                    
+                    // Update lap number display if available
+                    if (data.lapNumber !== undefined) {
+                        document.getElementById('admin-lap-number').textContent = data.lapNumber;
+                    }
+                }
+            })
+            .catch(err => console.error('Stats fetch failed:', err));
+    }
+
+    // NEW: Dedicated function to refresh admin panel stats
+    function updateAdminPanel() {
+        if (!isAdmin) return;
+        fetch(API + '?action=get_emoji_stats&t=' + Date.now()) // cache-bust
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) return;
+                
+                // Update lap number
+                if (data.lapNumber !== undefined) {
+                    document.getElementById('admin-lap-number').textContent = data.lapNumber;
+                }
+                
+                // Update persistent all-time stats
+                const allTime = data.allTime || {};
+                document.getElementById('admin-stat-done').textContent = allTime.done || 0;
+                document.getElementById('admin-stat-unsure').textContent = allTime.unsure || 0;
+                document.getElementById('admin-stat-pain').textContent = allTime.pain || 0;
+                document.getElementById('admin-stat-happy').textContent = allTime.happy || 0;
+                document.getElementById('admin-stat-help').textContent = allTime.help || 0;
+                document.getElementById('admin-total-votes').textContent = allTime.total || 0;
+            })
+            .catch(err => console.error('Admin panel stats refresh failed:', err));
     }
    
     // ==================== Remaining functions (Word Cloud, Emoji, QR, etc.) ====================
@@ -1159,9 +1223,14 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    alert('✅ New lap #' + data.lap);
+                    alert('✅ New lap #' + data.lap + ' started!\nPrevious lap totals added to all-time.');
+                    // Refresh admin panel with new persistent totals
                     updateAdminPanel();
                 }
+            })
+            .catch(err => {
+                console.error('New lap failed:', err);
+                alert('❌ Failed to start new lap');
             });
         }
     }
@@ -1469,20 +1538,6 @@
             btn.classList.remove('disabled');
             btn.disabled = false;
         }, 60000);
-    }
-   
-    function updateEmojiStats() {
-        fetch(API + '?action=get_emoji_stats')
-            .then(r => r.json())
-            .then(data => {
-                if (!data.success) return;
-                const lap = data.currentLap;
-                document.getElementById('stat-done').textContent = lap.done || 0;
-                document.getElementById('stat-unsure').textContent = lap.unsure || 0;
-                document.getElementById('stat-pain').textContent = lap.pain || 0;
-                document.getElementById('stat-happy').textContent = lap.happy || 0;
-                document.getElementById('stat-help').textContent = lap.help || 0;
-            });
     }
    
     function updateUserCount() {
