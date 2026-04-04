@@ -69,7 +69,7 @@ function getCurrentLap($dataDir) {
 }
 
 // ============================================================================
-// NEW: Persistent Emoji Totals Helpers (for accumulating lap-by-lap stats)
+// Persistent Emoji Totals Helpers (for accumulating lap-by-lap stats)
 // ============================================================================
 
 // Helper: Get persistent emoji totals (all-time accumulated across completed laps)
@@ -238,7 +238,7 @@ if ($action === 'emoji_vote') {
     exit;
 }
 
-// 6. EMOJI METER: Get Stats - UPDATED to return persistent all-time totals
+// 6. EMOJI METER: Get Stats - Returns persistent all-time totals
 if ($action === 'get_emoji_stats') {
     $votes = readJsonLocked($dataDir . 'emoji_votes.json');
     $currentLap = getCurrentLap($dataDir);
@@ -272,7 +272,7 @@ if ($action === 'get_emoji_animation') {
     exit;
 }
 
-// 8. EMOJI METER: Reset Votes / New Lap - UPDATED to accumulate totals
+// 8. EMOJI METER: Reset Votes / New Lap - FIXED: properly resets all-time stats on "all"
 if ($action === 'reset_emoji' && isset($_SESSION['is_admin'])) {
     $type = isset($_POST['type']) ? $_POST['type'] : 'all';
    
@@ -311,17 +311,15 @@ if ($action === 'reset_emoji' && isset($_SESSION['is_admin'])) {
             'allTime' => $totals
         ));
     } else if ($type === 'all') {
-        // Option: Preserve totals when resetting all votes (comment next block to reset totals too)
-        // If you want totals to reset when "Reset All" is pressed, remove/comment this block:
-        $totals = getEmojiTotals($dataDir);
-        // Keep totals as-is, or reset them by uncommenting below:
-        // $totals = array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0, 'lapsCompleted' => 0);
-        saveEmojiTotals($dataDir, $totals);
+        // ✅ FIXED: Reset ALL - Clear votes AND reset persistent all-time totals to zero
+        $zeroTotals = array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0, 'lapsCompleted' => 0);
+        saveEmojiTotals($dataDir, $zeroTotals);
         
         writeJsonLocked($dataDir . 'emoji_votes.json', array());
         $laps = array('current' => 1, 'history' => array());
         writeJsonLocked($dataDir . 'emoji_laps.json', $laps);
-        echo json_encode(array('success' => true));
+        
+        echo json_encode(array('success' => true, 'allTime' => $zeroTotals));
     }
     exit;
 }
@@ -564,7 +562,7 @@ if ($action === 'delete_pdf' && isset($_SESSION['is_admin'])) {
     exit;
 }
 
-// ==================== NEW: INFO TEXT MODULE ====================
+// ==================== INFO TEXT MODULE ====================
 
 // Get Info Text
 if ($action === 'get_info_text') {
