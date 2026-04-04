@@ -400,7 +400,7 @@ if ($action === 'get_user_count') {
     $users = readJsonLocked($dataDir . 'active_users.json');
    
     $activeUsers = array();
-    $cutoffTime = time() - (24 * 60 * 60);
+    $cutoffTime = time() - (5 * 60);  // 300 seconds = 5 minutes
    
     foreach ($users as $ip => $userData) {
         if (isset($userData['lastActive']) && $userData['lastActive'] > $cutoffTime) {
