@@ -993,7 +993,7 @@
     async function loadPdf() {
         const viewer = document.getElementById('pdf-viewer');
         
-        fetch(API + '?action=get_pdf_info')
+        fetch(API + '?action=get_pdf_info&t=' + Date.now()) // cache-bust
             .then(r => r.json())
             .then(async data => {
                 if (!data.success || !data.hasPdf) {
@@ -1007,7 +1007,7 @@
                 viewer.innerHTML = '<div class="pdf-pages-container" id="pdf-pages"></div>';
 
                 try {
-                    const loadingTask = pdfjsLib.getDocument('data/' + currentPdfFilename);
+                    const loadingTask = pdfjsLib.getDocument('data/' + currentPdfFilename + '?t=' + Date.now()); // cache-bust PDF file
                     pdfDoc = await loadingTask.promise;
 
                     const container = document.getElementById('pdf-pages');
@@ -1030,9 +1030,40 @@
                     viewer.innerHTML = `<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p><p style="font-size:14px;">${err.message || 'Unknown error'}</p></div></div>`;
                 }
             })
-            .catch(() => {
+            .catch((err) => {
+                console.error('PDF info fetch failed:', err);
                 viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p></div></div>';
             });
+    }
+
+    // NEW: Poll until PDF is ready (prevents race condition)
+    function waitForPdfReady(maxAttempts = 10, interval = 300) {
+        let attempts = 0;
+        return new Promise((resolve, reject) => {
+            const check = () => {
+                fetch(API + '?action=get_pdf_info&t=' + Date.now()) // cache-bust
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success && data.hasPdf) {
+                            resolve(data);
+                        } else if (attempts < maxAttempts) {
+                            attempts++;
+                            setTimeout(check, interval);
+                        } else {
+                            reject(new Error('PDF not ready after polling'));
+                        }
+                    })
+                    .catch(err => {
+                        if (attempts < maxAttempts) {
+                            attempts++;
+                            setTimeout(check, interval);
+                        } else {
+                            reject(err);
+                        }
+                    });
+            };
+            check();
+        });
     }
    
     function toggleAdminPanel() {
@@ -1174,19 +1205,42 @@
                 .then(data => {
                     if (data.success) {
                         alert('✅ PDF uploaded successfully!');
+                        
+                        // Enable PDF viewer module if needed (with error handling)
                         if (!modulesConfig.pdf_viewer) {
                             modulesConfig.pdf_viewer = true;
-                            fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter + '&qr_link=' + modulesConfig.qr_link + '&info_text=' + modulesConfig.info_text });
+                            fetch(API, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                                body: 'action=update_modules_config&wordcloud=' + modulesConfig.wordcloud + '&pdf_viewer=true&emoji_meter=' + modulesConfig.emoji_meter + '&qr_link=' + modulesConfig.qr_link + '&info_text=' + modulesConfig.info_text
+                            }).catch(err => console.warn('Config update failed (non-critical):', err));
                         }
+                        
+                        // Clear cached PDF state
                         currentPdfFilename = '';
                         pdfDoc = null;
-                        viewPdf();
-                        updateAdminPanel();
+                        
+                        // Wait briefly for server to sync, then load PDF with polling
+                        setTimeout(() => {
+                            waitForPdfReady().then(() => {
+                                viewPdf();
+                                updateAdminPanel();
+                            }).catch(err => {
+                                console.error('PDF ready check failed:', err);
+                                // Still try to load anyway
+                                viewPdf();
+                                updateAdminPanel();
+                            });
+                        }, 300);
+                        
                     } else {
-                        alert('❌ Upload failed: ' + (data.error || 'Unknown error'));
+                        alert('❌ Upload failed: ' + (data.error || data.message || 'Unknown error'));
                     }
                 })
-                .catch(() => alert('❌ Network error'));
+                .catch(err => {
+                    console.error('Upload request failed:', err);
+                    alert('❌ Network error during upload');
+                });
         };
         input.click();
     }
