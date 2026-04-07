@@ -4,19 +4,23 @@
 header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 header('Expires: 0');
+
 // CORS HEADERS
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
+
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
+
 error_reporting(0);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/data/upload_errors.log'); // Debug log
+
 session_start();
 header('Content-Type: application/json');
 
@@ -27,12 +31,15 @@ $adminPassHash = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
 if (!file_exists($dataDir)) {
     mkdir($dataDir, 0755, true);
 }
-// Quick write-permission check
 if (!is_writable($dataDir)) {
     error_log("CRITICAL: data/ directory is not writable: " . $dataDir);
 }
 
-// File locking helper functions
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+// File locking read
 function readJsonLocked($file) {
     if (!file_exists($file)) return array();
     $handle = fopen($file, 'r');
@@ -47,6 +54,7 @@ function readJsonLocked($file) {
     return array();
 }
 
+// File locking write
 function writeJsonLocked($file, $data) {
     $handle = fopen($file, 'c+');
     if (!$handle) return false;
@@ -68,18 +76,13 @@ function getCurrentLap($dataDir) {
     return isset($laps['current']) ? $laps['current'] : 1;
 }
 
-// ============================================================================
-// Persistent Emoji Totals Helpers (for accumulating lap-by-lap stats)
-// ============================================================================
-
-// Helper: Get persistent emoji totals (all-time accumulated across completed laps)
+// Helper: Get persistent emoji totals
 function getEmojiTotals($dataDir) {
     $file = $dataDir . 'emoji_totals.json';
     if (!file_exists($file)) {
         return array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0, 'lapsCompleted' => 0);
     }
     $data = readJsonLocked($file);
-    // Merge with defaults to ensure all keys exist
     return array_merge(
         array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0, 'lapsCompleted' => 0),
         $data
@@ -91,7 +94,7 @@ function saveEmojiTotals($dataDir, $totals) {
     return writeJsonLocked($dataDir . 'emoji_totals.json', $totals);
 }
 
-// Helper: Calculate stats for a specific lap from votes array
+// Helper: Calculate stats for a specific lap
 function getCurrentLapStats($votes, $targetLap) {
     $stats = array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0);
     foreach ($votes as $vote) {
@@ -105,7 +108,10 @@ function getCurrentLapStats($votes, $targetLap) {
     return $stats;
 }
 
-// Get Action
+// ============================================================================
+// REQUEST HANDLING
+// ============================================================================
+
 $action = isset($_POST['action']) ? $_POST['action'] : (isset($_GET['action']) ? $_GET['action'] : '');
 
 // 1. Admin Login
@@ -148,6 +154,7 @@ if ($action === 'add_word') {
                 'users' => array($user)
             );
         }
+        // Limit to 100 unique words
         if (count($words) > 100) {
             usort($words, function($a, $b) { return $b['lastTime'] - $a['lastTime']; });
             $words = array_slice($words, 0, 100);
@@ -189,14 +196,14 @@ if ($action === 'delete_word' && isset($_SESSION['is_admin'])) {
 }
 
 // ============================================================================
-// SENTENCES CLOUD MODULE - NEW ENDPOINTS
+// SENTENCES CLOUD ENDPOINTS
 // ============================================================================
 
-// 2a. Sentences Cloud: Submit Sentence (NO character limit)
+// 2a. Sentences Cloud: Submit Sentence
 if ($action === 'add_sentence') {
     $sentence = strip_tags($_POST['sentence'] ?? '');
     $user = strip_tags($_POST['username'] ?? '');
-    // Only require non-empty, no maxlength restriction
+    // No character limit (other than PHP post limits)
     if (strlen($sentence) > 0) {
         $normalized = strtolower(trim($sentence));
         $sentences = readJsonLocked($dataDir . 'sentences.json');
@@ -221,7 +228,7 @@ if ($action === 'add_sentence') {
                 'users' => array($user)
             );
         }
-        // Limit to 100 unique sentences to prevent database bloat
+        // Limit to 100 unique sentences
         if (count($sentences) > 100) {
             usort($sentences, function($a, $b) { return $b['lastTime'] - $a['lastTime']; });
             $sentences = array_slice($sentences, 0, 100);
@@ -245,7 +252,7 @@ if ($action === 'get_sentences') {
     exit;
 }
 
-// 2c. Sentences Cloud: Delete Sentence (Admin only)
+// 2c. Sentences Cloud: Delete Sentence
 if ($action === 'delete_sentence' && isset($_SESSION['is_admin'])) {
     $sentenceToDelete = isset($_POST['sentence']) ? strtolower(trim($_POST['sentence'])) : '';
     if ($sentenceToDelete) {
@@ -263,7 +270,7 @@ if ($action === 'delete_sentence' && isset($_SESSION['is_admin'])) {
 }
 
 // ============================================================================
-// CLASS NAME & SNAPSHOTS & EXPORT MODULE - NEW ENDPOINTS
+// CLASS NAME & SNAPSHOTS & EXPORT ENDPOINTS
 // ============================================================================
 
 // Get Class Config
@@ -288,7 +295,7 @@ if ($action === 'save_class_config' && isset($_SESSION['is_admin'])) {
     exit;
 }
 
-// Create Snapshot (Admin only) - NOW INCLUDES ACTIVE USERS
+// Create Snapshot (Admin only) - Includes Active Users
 if ($action === 'create_snapshot' && isset($_SESSION['is_admin'])) {
     $words = readJsonLocked($dataDir . 'words.json');
     $sentences = readJsonLocked($dataDir . 'sentences.json');
@@ -334,7 +341,7 @@ if ($action === 'create_snapshot' && isset($_SESSION['is_admin'])) {
 if ($action === 'get_snapshots' && isset($_SESSION['is_admin'])) {
     $snaps = readJsonLocked($dataDir . 'snapshots.json');
     if (!is_array($snaps)) $snaps = array();
-    // Return metadata only to keep response light
+    // Return metadata only
     $list = array_map(function($s) {
         return array(
             'id' => $s['id'], 
@@ -360,11 +367,9 @@ if ($action === 'delete_snapshot' && isset($_SESSION['is_admin'])) {
         exit;
     }
     
-    // Filter out the snapshots to delete
     $filtered = array_filter($snaps, function($snap) use ($idsToDelete) {
         return !in_array($snap['id'], $idsToDelete);
     });
-    // Re-index array to keep it clean
     $filtered = array_values($filtered);
     
     writeJsonLocked($dataDir . 'snapshots.json', $filtered);
@@ -401,19 +406,17 @@ if ($action === 'export_snapshot' && isset($_SESSION['is_admin'])) {
     if (empty($safeClassName)) $safeClassName = 'Export';
     $timestamp = date('Y-m-d_His');
     $filename = $safeClassName . '_' . $timestamp . '.csv';
-    // ------------------------
-
-    // Generate CSV with UTF-8 BOM for Excel compatibility
+    
+    // Generate CSV with UTF-8 BOM
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Cache-Control: no-cache, no-store, must-revalidate');
     
-    // Output UTF-8 BOM
     echo chr(0xEF) . chr(0xBB) . chr(0xBF);
     
     $output = fopen('php://output', 'w');
     
-    // SECTION 1: SNAPSHOT METADATA
+    // SECTION 1: METADATA
     fputcsv($output, array('=== SNAPSHOT METADATA ==='));
     fputcsv($output, array('Snapshot ID', 'Class Name', 'Timestamp', 'Word Count', 'Sentence Count', 'Active Users'));
     foreach ($targetSnaps as $snap) {
@@ -426,7 +429,7 @@ if ($action === 'export_snapshot' && isset($_SESSION['is_admin'])) {
             isset($snap['active_users_count']) ? $snap['active_users_count'] : 0
         ));
     }
-    fwrite($output, "\n"); // Separator
+    fwrite($output, "\n");
 
     // SECTION 2: WORDS
     fputcsv($output, array('=== WORDS LIST ==='));
@@ -446,7 +449,7 @@ if ($action === 'export_snapshot' && isset($_SESSION['is_admin'])) {
             }
         }
     }
-    fwrite($output, "\n"); // Separator
+    fwrite($output, "\n");
 
     // SECTION 3: SENTENCES
     fputcsv($output, array('=== SENTENCES LIST ==='));
@@ -466,7 +469,7 @@ if ($action === 'export_snapshot' && isset($_SESSION['is_admin'])) {
             }
         }
     }
-    fwrite($output, "\n"); // Separator
+    fwrite($output, "\n");
 
     // SECTION 4: ACTIVE USERS
     fputcsv($output, array('=== ACTIVE USERS AT SNAPSHOT ==='));
@@ -486,12 +489,34 @@ if ($action === 'export_snapshot' && isset($_SESSION['is_admin'])) {
     }
     
     fclose($output);
-    exit; // Critical: stop further JSON output
+    exit; // CRITICAL: stop execution
 }
 
 // ============================================================================
-// EMOJI METER: Submit Vote
+// PDF PINNING CONFIG ENDPOINTS
 // ============================================================================
+
+if ($action === 'get_pdf_config') {
+    $config = readJsonLocked($dataDir . 'pdf_config.json');
+    echo json_encode(array(
+        'success' => true,
+        'pinned_page' => isset($config['pinned_page']) ? intval($config['pinned_page']) : 0
+    ));
+    exit;
+}
+
+if ($action === 'set_pdf_config' && isset($_SESSION['is_admin'])) {
+    $page = intval($_POST['page'] ?? 0);
+    $config = array('pinned_page' => max(0, $page), 'updated' => time());
+    $success = writeJsonLocked($dataDir . 'pdf_config.json', $config);
+    echo json_encode(array('success' => $success, 'pinned_page' => $config['pinned_page']));
+    exit;
+}
+
+// ============================================================================
+// EMOJI METER ENDPOINTS
+// ============================================================================
+
 if ($action === 'emoji_vote') {
     $ip = $_SERVER['REMOTE_ADDR'];
     $emoji = isset($_POST['emoji']) ? $_POST['emoji'] : '';
@@ -541,27 +566,21 @@ if ($action === 'emoji_vote') {
     exit;
 }
 
-// 6. EMOJI METER: Get Stats - Returns persistent all-time totals
 if ($action === 'get_emoji_stats') {
     $votes = readJsonLocked($dataDir . 'emoji_votes.json');
     $currentLap = getCurrentLap($dataDir);
-    
-    // Get persistent all-time totals (accumulated from completed laps)
     $allTime = getEmojiTotals($dataDir);
-    
-    // Calculate current lap stats from live votes
     $currentLapStats = getCurrentLapStats($votes, $currentLap);
     
     echo json_encode(array(
         'success' => true,
-        'allTime' => $allTime,           // Persistent accumulated totals
-        'currentLap' => $currentLapStats, // Live stats for current lap only
+        'allTime' => $allTime,
+        'currentLap' => $currentLapStats,
         'lapNumber' => $currentLap
     ));
     exit;
 }
 
-// 7. EMOJI METER: Get Latest Animation
 if ($action === 'get_emoji_animation') {
     $animationFile = $dataDir . 'emoji_animation.json';
     if (file_exists($animationFile)) {
@@ -575,20 +594,15 @@ if ($action === 'get_emoji_animation') {
     exit;
 }
 
-// 8. EMOJI METER: Reset Votes / New Lap - FIXED: properly resets all-time stats on "all"
 if ($action === 'reset_emoji' && isset($_SESSION['is_admin'])) {
     $type = isset($_POST['type']) ? $_POST['type'] : 'all';
    
     if ($type === 'lap') {
-        // Get current lap and votes
         $laps = readJsonLocked($dataDir . 'emoji_laps.json');
         $currentLap = isset($laps['current']) ? $laps['current'] : 1;
         $votes = readJsonLocked($dataDir . 'emoji_votes.json');
-        
-        // Calculate stats for the lap that's ending
         $lapStats = getCurrentLapStats($votes, $currentLap);
         
-        // Add to persistent all-time totals
         $totals = getEmojiTotals($dataDir);
         foreach (array('done', 'unsure', 'pain', 'happy', 'help') as $emoji) {
             $totals[$emoji] += $lapStats[$emoji];
@@ -597,7 +611,6 @@ if ($action === 'reset_emoji' && isset($_SESSION['is_admin'])) {
         $totals['lapsCompleted'] = ($totals['lapsCompleted'] ?? 0) + 1;
         saveEmojiTotals($dataDir, $totals);
         
-        // Increment lap counter and save history
         $laps['current'] = $currentLap + 1;
         if (!isset($laps['history'])) $laps['history'] = array();
         $laps['history'][] = array(
@@ -614,24 +627,19 @@ if ($action === 'reset_emoji' && isset($_SESSION['is_admin'])) {
             'allTime' => $totals
         ));
     } else if ($type === 'all') {
-        // ✅ FIXED: Reset ALL - Clear votes AND reset persistent all-time totals to zero
         $zeroTotals = array('done' => 0, 'unsure' => 0, 'pain' => 0, 'happy' => 0, 'help' => 0, 'total' => 0, 'lapsCompleted' => 0);
         saveEmojiTotals($dataDir, $zeroTotals);
-        
         writeJsonLocked($dataDir . 'emoji_votes.json', array());
         $laps = array('current' => 1, 'history' => array());
         writeJsonLocked($dataDir . 'emoji_laps.json', $laps);
-        
         echo json_encode(array('success' => true, 'allTime' => $zeroTotals));
     }
     exit;
 }
 
-// 9. EMOJI METER: Get Vote Log
 if ($action === 'get_emoji_log' && isset($_SESSION['is_admin'])) {
     $votes = readJsonLocked($dataDir . 'emoji_votes.json');
     $log = array_reverse($votes);
-   
     foreach ($log as &$entry) {
         $entry = array(
             'username' => isset($entry['username']) ? $entry['username'] : 'Anonymous',
@@ -640,20 +648,15 @@ if ($action === 'get_emoji_log' && isset($_SESSION['is_admin'])) {
             'lap' => isset($entry['lap']) ? $entry['lap'] : 1
         );
     }
-   
     $log = array_slice($log, 0, 100);
-   
     echo json_encode(array('success' => true, 'log' => $log));
     exit;
 }
 
-// 10. EMOJI METER: Delete Log Entry
 if ($action === 'delete_emoji_log' && isset($_SESSION['is_admin'])) {
     $index = isset($_POST['index']) ? intval($_POST['index']) : -1;
     $type = isset($_POST['type']) ? $_POST['type'] : 'single';
-   
     $votes = readJsonLocked($dataDir . 'emoji_votes.json');
-   
     if ($type === 'all') {
         writeJsonLocked($dataDir . 'emoji_votes.json', array());
         echo json_encode(array('success' => true, 'message' => 'All votes deleted'));
@@ -667,56 +670,46 @@ if ($action === 'delete_emoji_log' && isset($_SESSION['is_admin'])) {
         } else {
             echo json_encode(array('success' => false, 'message' => 'Entry not found'));
         }
-    } else {
-        echo json_encode(array('success' => false, 'message' => 'Invalid parameters'));
     }
     exit;
 }
 
-// 11. USER TRACKING: Log User Login
+// ============================================================================
+// USER TRACKING ENDPOINTS
+// ============================================================================
+
 if ($action === 'log_user_login') {
     $ip = $_SERVER['REMOTE_ADDR'];
     $username = isset($_POST['username']) ? strip_tags($_POST['username']) : 'Anonymous';
-   
     if (!$username || $username === 'Anonymous') {
         echo json_encode(array('success' => false, 'message' => 'Username required'));
         exit;
     }
-   
     $users = readJsonLocked($dataDir . 'active_users.json');
-   
     $users[$ip] = array(
         'username' => $username,
         'ip' => $ip,
         'loginTime' => time(),
         'lastActive' => time()
     );
-   
     writeJsonLocked($dataDir . 'active_users.json', $users);
-   
     echo json_encode(array('success' => true, 'count' => count($users)));
     exit;
 }
 
-// 12. USER TRACKING: Get Unique User Count
 if ($action === 'get_user_count') {
     $users = readJsonLocked($dataDir . 'active_users.json');
-   
     $activeUsers = array();
-    $cutoffTime = time() - (5 * 60);  // 300 seconds = 5 minutes
-   
+    $cutoffTime = time() - (5 * 60);
     foreach ($users as $ip => $userData) {
         if (isset($userData['lastActive']) && $userData['lastActive'] > $cutoffTime) {
             $activeUsers[$ip] = $userData;
         }
     }
-   
     if (count($activeUsers) !== count($users)) {
         writeJsonLocked($dataDir . 'active_users.json', $activeUsers);
     }
-   
     $uniqueCount = count($activeUsers);
-   
     echo json_encode(array(
         'success' => true,
         'count' => $uniqueCount,
@@ -726,28 +719,29 @@ if ($action === 'get_user_count') {
 }
 
 // ============================================================================
-// 13. LESSON MODE: Upload PDF - HARDENED VERSION
+// PDF UPLOAD & MANAGEMENT
 // ============================================================================
+
 if ($action === 'upload_pdf' && isset($_SESSION['is_admin'])) {
-    // --- Step 1: Check PHP upload errors ---
+    // Check errors
     if (!isset($_FILES['pdf']) || $_FILES['pdf']['error'] !== UPLOAD_ERR_OK) {
         $uploadErrors = [
-            UPLOAD_ERR_INI_SIZE   => 'File exceeds server upload limit (upload_max_filesize)',
-            UPLOAD_ERR_FORM_SIZE  => 'File exceeds form limit (MAX_FILE_SIZE)',
-            UPLOAD_ERR_PARTIAL    => 'File was only partially uploaded',
-            UPLOAD_ERR_NO_FILE    => 'No file was sent',
-            UPLOAD_ERR_NO_TMP_DIR => 'Missing temporary folder on server',
-            UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
-            UPLOAD_ERR_EXTENSION  => 'Upload stopped by PHP extension'
+            UPLOAD_ERR_INI_SIZE   => 'File exceeds server limit',
+            UPLOAD_ERR_FORM_SIZE  => 'File exceeds form limit',
+            UPLOAD_ERR_PARTIAL    => 'Partial upload',
+            UPLOAD_ERR_NO_FILE    => 'No file sent',
+            UPLOAD_ERR_NO_TMP_DIR => 'Missing temp folder',
+            UPLOAD_ERR_CANT_WRITE => 'Disk write error',
+            UPLOAD_ERR_EXTENSION  => 'Stopped by extension'
         ];
         $errorCode = $_FILES['pdf']['error'] ?? -1;
-        $errorMsg = $uploadErrors[$errorCode] ?? 'Unknown upload error (code: ' . $errorCode . ')';
+        $errorMsg = $uploadErrors[$errorCode] ?? 'Unknown error (code: ' . $errorCode . ')';
         error_log("PDF upload failed - Error $errorCode: $errorMsg");
         echo json_encode(['success' => false, 'message' => $errorMsg]);
         exit;
     }
 
-    // --- Step 2: Validate extension ---
+    // Validate Extension
     $originalName = basename($_FILES['pdf']['name']);
     $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
     if ($ext !== 'pdf') {
@@ -755,63 +749,50 @@ if ($action === 'upload_pdf' && isset($_SESSION['is_admin'])) {
         exit;
     }
 
-    // --- Step 3: Validate MIME type using fileinfo ---
-    if (!function_exists('finfo_open')) {
-        error_log("WARNING: PHP fileinfo extension not enabled - skipping MIME validation");
-    } else {
+    // Validate MIME
+    if (function_exists('finfo_open')) {
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mimeType = finfo_file($finfo, $_FILES['pdf']['tmp_name']);
         finfo_close($finfo);
-        // Accept standard PDF MIME types
         if (!in_array($mimeType, ['application/pdf', 'application/x-pdf', 'application/acrobat'])) {
-            error_log("PDF upload rejected - Invalid MIME type: $mimeType");
-            echo json_encode(['success' => false, 'message' => 'File is not a valid PDF (MIME: ' . $mimeType . ')']);
+            echo json_encode(['success' => false, 'message' => 'Invalid file type (MIME: ' . $mimeType . ')']);
             exit;
         }
     }
 
-    // --- Step 4: Validate PDF magic bytes (%PDF-) ---
+    // Validate Magic Bytes (%PDF-)
     $handle = fopen($_FILES['pdf']['tmp_name'], 'rb');
     if (!$handle) {
-        echo json_encode(['success' => false, 'message' => 'Could not read uploaded file']);
+        echo json_encode(['success' => false, 'message' => 'Could not read file']);
         exit;
     }
     $header = fread($handle, 8);
     fclose($handle);
     if (strlen($header) < 4 || substr($header, 0, 4) !== '%PDF') {
-        error_log("PDF upload rejected - Invalid magic bytes: " . bin2hex(substr($header, 0, 8)));
-        echo json_encode(['success' => false, 'message' => 'File is corrupted or not a valid PDF']);
+        echo json_encode(['success' => false, 'message' => 'File is not a valid PDF']);
         exit;
     }
 
-    // --- Step 5: Generate unique, safe filename ---
+    // Generate Safe Filename
     $newFilename = 'lesson_' . time() . '_' . bin2hex(random_bytes(4)) . '.pdf';
     $uploadPath = $dataDir . $newFilename;
 
-    // --- Step 6: Move and verify file ---
+    // Move File
     if (!move_uploaded_file($_FILES['pdf']['tmp_name'], $uploadPath)) {
-        error_log("move_uploaded_file failed for: $originalName");
-        echo json_encode(['success' => false, 'message' => 'Server failed to save the file']);
+        error_log("move_uploaded_file failed");
+        echo json_encode(['success' => false, 'message' => 'Server failed to save file']);
         exit;
     }
 
-    // Post-upload integrity checks
+    // Post-upload Check
     $fileSize = filesize($uploadPath);
-    if ($fileSize < 100) { // PDFs are rarely <100 bytes
+    if ($fileSize < 100) {
         unlink($uploadPath);
-        echo json_encode(['success' => false, 'message' => 'Uploaded file is too small to be valid']);
+        echo json_encode(['success' => false, 'message' => 'Uploaded file is too small']);
         exit;
     }
 
-    // Re-check magic bytes on saved file (defense in depth)
-    $savedHeader = file_get_contents($uploadPath, false, null, 0, 5);
-    if (substr($savedHeader, 0, 4) !== '%PDF') {
-        unlink($uploadPath);
-        echo json_encode(['success' => false, 'message' => 'Saved file failed integrity check']);
-        exit;
-    }
-
-    // --- Step 7: Save metadata ---
+    // Save Metadata
     $pdfInfo = [
         'filename'   => $newFilename,
         'original'   => $originalName,
@@ -822,15 +803,12 @@ if ($action === 'upload_pdf' && isset($_SESSION['is_admin'])) {
     ];
     writeJsonLocked($dataDir . 'lesson_pdf.json', $pdfInfo);
 
-    error_log("PDF uploaded successfully: $originalName ($fileSize bytes) -> $newFilename");
     echo json_encode(['success' => true, 'filename' => $newFilename, 'size' => $fileSize]);
     exit;
 }
 
-// 14. LESSON MODE: Get PDF Info
 if ($action === 'get_pdf_info') {
     $pdfInfo = readJsonLocked($dataDir . 'lesson_pdf.json');
-   
     if (isset($pdfInfo['filename']) && file_exists($dataDir . $pdfInfo['filename'])) {
         echo json_encode(array(
             'success' => true,
@@ -846,10 +824,8 @@ if ($action === 'get_pdf_info') {
     exit;
 }
 
-// 15. LESSON MODE: Delete PDF
 if ($action === 'delete_pdf' && isset($_SESSION['is_admin'])) {
     $pdfInfo = readJsonLocked($dataDir . 'lesson_pdf.json');
-   
     if (isset($pdfInfo['filename'])) {
         $filePath = $dataDir . $pdfInfo['filename'];
         if (file_exists($filePath)) {
@@ -866,39 +842,15 @@ if ($action === 'delete_pdf' && isset($_SESSION['is_admin'])) {
 }
 
 // ============================================================================
-// PDF PINNING CONFIG (NEW ENDPOINTS)
+// INFO TEXT & MODULE CONFIG
 // ============================================================================
 
-if ($action === 'get_pdf_config') {
-    $config = readJsonLocked($dataDir . 'pdf_config.json');
-    echo json_encode(array(
-        'success' => true,
-        'pinned_page' => isset($config['pinned_page']) ? intval($config['pinned_page']) : 0
-    ));
-    exit;
-}
-
-if ($action === 'set_pdf_config' && isset($_SESSION['is_admin'])) {
-    $page = intval($_POST['page'] ?? 0);
-    $config = array('pinned_page' => max(0, $page), 'updated' => time());
-    $success = writeJsonLocked($dataDir . 'pdf_config.json', $config);
-    echo json_encode(array('success' => $success, 'pinned_page' => $config['pinned_page']));
-    exit;
-}
-
-// ==================== INFO TEXT MODULE ====================
-
-// Get Info Text
 if ($action === 'get_info_text') {
     $info = readJsonLocked($dataDir . 'info_text.json');
-    echo json_encode(array(
-        'success' => true,
-        'text' => $info['text'] ?? ''
-    ));
+    echo json_encode(array('success' => true, 'text' => $info['text'] ?? ''));
     exit;
 }
 
-// Save Info Text (Admin only)
 if ($action === 'save_info_text' && isset($_SESSION['is_admin'])) {
     $text = isset($_POST['text']) ? trim($_POST['text']) : '';
     $info = array('text' => $text, 'updated' => time());
@@ -907,10 +859,8 @@ if ($action === 'save_info_text' && isset($_SESSION['is_admin'])) {
     exit;
 }
 
-// 16. MODULES: Get Config
 if ($action === 'get_modules_config') {
     $config = readJsonLocked($dataDir . 'modules_config.json');
-   
     if (empty($config)) {
         $config = array(
             'wordcloud' => true,
@@ -922,25 +872,15 @@ if ($action === 'get_modules_config') {
         );
         writeJsonLocked($dataDir . 'modules_config.json', $config);
     } else {
-        if (!isset($config['info_text'])) {
-            $config['info_text'] = false;
-            writeJsonLocked($dataDir . 'modules_config.json', $config);
-        }
-        if (!isset($config['qr_link'])) {
-            $config['qr_link'] = false;
-            writeJsonLocked($dataDir . 'modules_config.json', $config);
-        }
-        if (!isset($config['sentences_cloud'])) {
-            $config['sentences_cloud'] = false;
-            writeJsonLocked($dataDir . 'modules_config.json', $config);
-        }
+        if (!isset($config['info_text'])) $config['info_text'] = false;
+        if (!isset($config['qr_link'])) $config['qr_link'] = false;
+        if (!isset($config['sentences_cloud'])) $config['sentences_cloud'] = false;
+        writeJsonLocked($dataDir . 'modules_config.json', $config);
     }
-   
     echo json_encode(array('success' => true, 'config' => $config));
     exit;
 }
 
-// 17. MODULES: Update Config
 if ($action === 'update_modules_config' && isset($_SESSION['is_admin'])) {
     $config = array(
         'wordcloud'       => isset($_POST['wordcloud'])       ? $_POST['wordcloud']       === 'true' : false,
@@ -950,13 +890,16 @@ if ($action === 'update_modules_config' && isset($_SESSION['is_admin'])) {
         'qr_link'         => isset($_POST['qr_link'])         ? $_POST['qr_link']         === 'true' : false,
         'info_text'       => isset($_POST['info_text'])       ? $_POST['info_text']       === 'true' : false
     );
-   
     writeJsonLocked($dataDir . 'modules_config.json', $config);
     echo json_encode(array('success' => true, 'config' => $config));
     exit;
 }
 
-// 18. Satisfaction: Vote (kept for compatibility)
+// ============================================================================
+// LEGACY & UTILITIES
+// ============================================================================
+
+// 18. Satisfaction Vote
 if ($action === 'vote') {
     $ip = $_SERVER['REMOTE_ADDR'];
     $rating = intval($_POST['rating'] ?? 0);
@@ -975,7 +918,7 @@ if ($action === 'vote') {
     exit;
 }
 
-// 19. Satisfaction: Get Stats
+// 19. Satisfaction Stats
 if ($action === 'get_stats') {
     $votes = readJsonLocked($dataDir . 'votes.json');
     $total = count($votes);
@@ -986,7 +929,7 @@ if ($action === 'get_stats') {
     exit;
 }
 
-// 20. Admin: Reset
+// 20. Admin Reset
 if ($action === 'reset' && isset($_SESSION['is_admin'])) {
     $type = isset($_POST['type']) ? $_POST['type'] : '';
     if ($type === 'words') writeJsonLocked($dataDir . 'words.json', array());
@@ -1000,7 +943,7 @@ if ($action === 'reset' && isset($_SESSION['is_admin'])) {
     exit;
 }
 
-// 21. Admin: Check Session
+// 21. Admin Session Check
 if ($action === 'check_session') {
     echo json_encode(array('is_admin' => isset($_SESSION['is_admin'])));
     exit;
