@@ -7,7 +7,7 @@
     <title>Modules - EduLite</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="js/qrcode.min.js"></script>
-    <script src="js/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
         body { padding: 0; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
         .game-container { max-width: 1200px; margin: 0 auto; padding: 15px; }
@@ -95,19 +95,30 @@
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
         .module-section.info-text-section { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 15px; font-size: 17px; line-height: 1.6; color: #2c3e50; }
         .info-text-content { white-space: pre-wrap; word-break: break-word; }
+        
+        /* PDF Viewer */
         .pdf-viewer-container { height: 70vh; background: #525659; border-radius: 10px; overflow-y: auto; position: relative; }
         .pdf-pages-container { padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
         .pdf-page-canvas { display: block; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.4); max-width: 100%; width: 100%; }
         .no-pdf { display: flex; align-items: center; justify-content: center; height: 100%; color: #999; font-size: 18px; text-align: center; padding: 40px; }
-        /* NEW: Page View Indicator */
-        .pdf-page-indicator {
-            position: sticky; top: 10px; right: 15px; z-index: 20;
-            background: rgba(0, 0, 0, 0.75); color: #fff; padding: 6px 14px;
-            border-radius: 20px; font-size: 13px; font-weight: 600;
-            pointer-events: none; backdrop-filter: blur(4px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            transition: opacity 0.2s;
+
+        /* INDEPENDENT PAGE INDICATOR PANEL */
+        .page-indicator-panel {
+            position: fixed; top: 85px; left: 50%; transform: translateX(-50%);
+            background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(8px);
+            color: #fff; padding: 10px 22px; border-radius: 30px;
+            font-size: 14px; font-weight: 600; z-index: 950;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none; display: flex; align-items: center; gap: 8px;
         }
+        .page-indicator-panel.hidden {
+            opacity: 0; transform: translateX(-50%) translateY(-10px);
+        }
+        .page-indicator-panel:not(.hidden) {
+            opacity: 1; transform: translateX(-50%) translateY(0);
+        }
+
         .pinned-pdf-container { background: #fff; border-radius: 12px; padding: 15px; text-align: center; max-width: 100%; overflow-x: auto; }
         .pinned-pdf-canvas { display: block; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.2); max-width: 100%; height: auto; }
         .emoji-meter-section { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 15px; text-align: center; }
@@ -159,6 +170,7 @@
             .admin-grid { grid-template-columns: 1fr; }
             #qr-code { max-width: 220px; }
             .qr-link { font-size: 12px; }
+            .page-indicator-panel { font-size: 13px; padding: 8px 16px; top: 80px; }
         }
     </style>
 </head>
@@ -205,7 +217,6 @@
         <h2>📌 Pin a PDF Page</h2>
         <p style="color:#666; margin-bottom:15px; font-size:14px;">Students will see the pinned page in a separate viewer while keeping full scroll freedom in the main document.</p>
         
-        <!-- Option 1: Pin Current Viewed Page -->
         <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
             <div style="text-align:left;">
                 <strong>📖 Currently Viewing:</strong><br>
@@ -214,7 +225,6 @@
             <button type="button" onclick="pinCurrentViewedPage()" class="btn-primary" style="padding:8px 14px; font-size:12px;">📌 Pin This</button>
         </div>
 
-        <!-- Option 2: Pin Specific Page Number -->
         <div style="margin-bottom:15px;">
             <label style="font-size:13px; color:#666; display:block; margin-bottom:5px;">Or enter a specific page number:</label>
             <input type="number" id="modal-pdf-pin-input" placeholder="e.g., 12" min="1" style="width:100%; padding:10px; border:2px solid #667eea; border-radius:8px; font-size:15px; text-align:center; box-sizing:border-box;">
@@ -267,6 +277,11 @@
             <button type="button" class="change-name-btn" onclick="showLogin()">Change Name</button>
             <button type="button" class="change-name-btn" onclick="goHome()">← Back</button>
         </div>
+    </div>
+
+    <!-- INDEPENDENT PAGE INDICATOR PANEL -->
+    <div id="pdf-page-indicator" class="page-indicator-panel hidden">
+        📖 Page <span id="current-page-num">-</span> / <span id="total-pages-num">-</span>
     </div>
    
     <!-- Admin Controls -->
@@ -366,8 +381,6 @@
     <div class="module-section hidden" id="module-pdf">
         <h2>📄 PDF Viewer</h2>
         <div class="pdf-viewer-container" id="pdf-viewer">
-            <!-- Page View Indicator -->
-            <div id="pdf-page-indicator" class="pdf-page-indicator" style="display:none;">Page 1 / ?</div>
             <div class="no-pdf"><div><p style="font-size: 48px; margin-bottom: 20px;">📄</p><p>No lesson material uploaded yet</p></div></div>
         </div>
     </div>
@@ -495,19 +508,22 @@
     function saveClassNameFromModal() { if (!isAdmin) return; const n = document.getElementById('modal-class-name').value.trim(); fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=save_class_config&class_name=' + encodeURIComponent(n) }).then(r => r.json()).then(d => { if (d.success) { alert('✅ Class name saved!'); loadClassName(); closeClassNameModal(); } else alert('❌ Failed to save class name'); }); }
 
     // ========================================================================
-    // PDF PINNING & RENDERING (WITH PAGE VIEW INDICATOR)
+    // PDF PINNING & RENDERING (WITH INDEPENDENT PAGE INDICATOR)
     // ========================================================================
     function setupPageObserver() {
         const canvases = document.querySelectorAll('.pdf-page-canvas');
         const indicator = document.getElementById('pdf-page-indicator');
-        if (!canvases.length) return;
-        if (window.pageObserver) window.pageObserver.disconnect();
-        
+        if (!canvases.length || !pdfDoc) return;
+
+        // Show independent panel
         if (indicator) {
-            indicator.style.display = 'block';
-            indicator.textContent = `Page ${currentViewedPage} / ${pdfDoc.numPages}`;
+            indicator.classList.remove('hidden');
+            document.getElementById('current-page-num').textContent = currentViewedPage;
+            document.getElementById('total-pages-num').textContent = pdfDoc.numPages;
         }
 
+        if (window.pageObserver) window.pageObserver.disconnect();
+        
         window.pageObserver = new IntersectionObserver((entries) => {
             let maxRatio = 0;
             entries.forEach(entry => {
@@ -516,7 +532,8 @@
                     const p = parseInt(entry.target.dataset.page);
                     if (p) {
                         currentViewedPage = p;
-                        if (indicator) indicator.textContent = `Page ${p} / ${pdfDoc.numPages}`;
+                        const numSpan = document.getElementById('current-page-num');
+                        if (numSpan) numSpan.textContent = p;
                         const disp = document.getElementById('pin-current-page-display');
                         if (disp) disp.textContent = p;
                     }
@@ -540,7 +557,7 @@
             if (!infoData.success || !infoData.hasPdf) {
                 viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
                 pdfDoc = null; currentPdfFilename = '';
-                if (indicator) indicator.style.display = 'none';
+                if (indicator) indicator.classList.add('hidden');
                 return;
             }
 
@@ -551,14 +568,12 @@
 
             currentPdfFilename = infoData.filename;
             viewer.innerHTML = '<div class="pdf-pages-container" id="pdf-pages"></div>';
-            // Re-insert indicator inside container so sticky positioning works
-            viewer.appendChild(indicator);
-            if (indicator) indicator.style.display = 'none';
-
             const container = document.getElementById('pdf-pages');
+
             pdfDoc = await pdfjsLib.getDocument('data/' + currentPdfFilename + '?t=' + Date.now()).promise;
             container.innerHTML = '';
 
+            // STRICT SEQUENTIAL RENDERING
             for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
                 const page = await pdfDoc.getPage(pageNum);
                 const scale = 1.5;
@@ -568,8 +583,7 @@
                 canvas.dataset.page = pageNum;
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
-                const ctx = canvas.getContext('2d');
-                await page.render({ canvasContext: ctx, viewport }).promise;
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
                 container.appendChild(canvas);
             }
 
@@ -578,7 +592,7 @@
         } catch (err) {
             console.error('PDF render error:', err);
             viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF. Check file integrity.</p></div></div>';
-            if (indicator) indicator.style.display = 'none';
+            if (indicator) indicator.classList.add('hidden');
         } finally {
             isPdfRendering = false;
         }
@@ -591,8 +605,7 @@
         if (!canvas) { canvas = document.createElement('canvas'); canvas.className = 'pinned-pdf-canvas'; wrapper.appendChild(canvas); }
         try {
             const page = await pdfDoc.getPage(pageNum);
-            const scale = 1.5;
-            const viewport = page.getViewport({ scale });
+            const scale = 1.5; const viewport = page.getViewport({ scale });
             canvas.height = viewport.height; canvas.width = viewport.width;
             await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
         } catch (err) { console.error('Pinned page render error:', err); }
@@ -626,42 +639,10 @@
         document.getElementById('pdf-pin-modal').classList.remove('hidden');
     }
     function closePdfPinModal() { document.getElementById('pdf-pin-modal').classList.add('hidden'); }
-    
-    function pinCurrentViewedPage() {
-        if (!pdfDoc || currentViewedPage < 1) return showPinStatus('⚠️ PDF not loaded yet.', 'error');
-        setPdfPin(currentViewedPage);
-    }
-
-    function pinSpecificPage() {
-        const input = document.getElementById('modal-pdf-pin-input');
-        const page = parseInt(input.value);
-        if (!pdfDoc) return showPinStatus('⚠️ PDF not loaded yet.', 'error');
-        if (isNaN(page) || page < 1 || page > pdfDoc.numPages) return showPinStatus(`⚠️ Enter a valid page (1-${pdfDoc.numPages})`, 'error');
-        setPdfPin(page);
-    }
-
-    function setPdfPin(page) {
-        showPinStatus(`Pinning Page ${page}...`, 'info');
-        fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: `action=set_pdf_config&page=${page}` })
-        .then(r => r.json()).then(d => {
-            if (d.success) {
-                showPinStatus(`✅ Pinned Page ${page}!`, 'success');
-                setTimeout(() => { closePdfPinModal(); checkPdfPin(); }, 600);
-            } else { showPinStatus('❌ Failed to pin page.', 'error'); }
-        }).catch(() => showPinStatus('❌ Network error.', 'error'));
-    }
-
-    function clearPdfPinFromModal() {
-        if (!isAdmin) return;
-        showPinStatus('Clearing pin...', 'info');
-        fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=set_pdf_config&page=0' })
-        .then(r => r.json()).then(d => {
-            if (d.success) {
-                showPinStatus('✅ Pin cleared.', 'success');
-                setTimeout(() => { closePdfPinModal(); const m = document.getElementById('module-pdf-pinned'); if (m) m.classList.add('hidden'); }, 500);
-            }
-        });
-    }
+    function pinCurrentViewedPage() { if (!pdfDoc || currentViewedPage < 1) return showPinStatus('⚠️ PDF not loaded yet.', 'error'); setPdfPin(currentViewedPage); }
+    function pinSpecificPage() { const page = parseInt(document.getElementById('modal-pdf-pin-input').value); if (!pdfDoc) return showPinStatus('⚠️ PDF not loaded yet.', 'error'); if (isNaN(page) || page < 1 || page > pdfDoc.numPages) return showPinStatus(`⚠️ Valid page (1-${pdfDoc.numPages})`, 'error'); setPdfPin(page); }
+    function setPdfPin(page) { showPinStatus(`Pinning Page ${page}...`, 'info'); fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: `action=set_pdf_config&page=${page}` }).then(r => r.json()).then(d => { if (d.success) { showPinStatus(`✅ Pinned Page ${page}!`, 'success'); setTimeout(() => { closePdfPinModal(); checkPdfPin(); }, 600); } else showPinStatus('❌ Failed.', 'error'); }).catch(() => showPinStatus('❌ Network error.', 'error')); }
+    function clearPdfPinFromModal() { fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=set_pdf_config&page=0' }).then(r => r.json()).then(d => { if (d.success) { showPinStatus('✅ Pin cleared.', 'success'); setTimeout(() => { closePdfPinModal(); const m = document.getElementById('module-pdf-pinned'); if (m) m.classList.add('hidden'); }, 500); } }); }
 
     // ========================================================================
     // CORE UI & MODULE LOGIC
