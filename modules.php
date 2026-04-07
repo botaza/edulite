@@ -95,28 +95,24 @@
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
         .module-section.info-text-section { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 15px; font-size: 17px; line-height: 1.6; color: #2c3e50; }
         .info-text-content { white-space: pre-wrap; word-break: break-word; }
-        
-        /* PDF Viewer */
         .pdf-viewer-container { height: 70vh; background: #525659; border-radius: 10px; overflow-y: auto; position: relative; }
         .pdf-pages-container { padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
-        .pdf-page-canvas { display: block; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.4); max-width: 100%; width: 100%; }
+        .pdf-page-canvas { display: block; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.4); max-width: 100%; width: 100%; cursor: pointer; }
         .no-pdf { display: flex; align-items: center; justify-content: center; height: 100%; color: #999; font-size: 18px; text-align: center; padding: 40px; }
-
+        
         /* INDEPENDENT PAGE INDICATOR PANEL */
         .page-indicator-panel {
             position: fixed; top: 85px; left: 50%; transform: translateX(-50%);
-            background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(8px);
+            background: rgba(30, 41, 59, 0.9); backdrop-filter: blur(8px);
             color: #fff; padding: 10px 22px; border-radius: 30px;
             font-size: 14px; font-weight: 600; z-index: 950;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             transition: opacity 0.3s, transform 0.3s;
             pointer-events: none; display: flex; align-items: center; gap: 8px;
+            border: 1px solid rgba(255,255,255,0.2);
         }
         .page-indicator-panel.hidden {
             opacity: 0; transform: translateX(-50%) translateY(-10px);
-        }
-        .page-indicator-panel:not(.hidden) {
-            opacity: 1; transform: translateX(-50%) translateY(0);
         }
 
         .pinned-pdf-container { background: #fff; border-radius: 12px; padding: 15px; text-align: center; max-width: 100%; overflow-x: auto; }
@@ -170,7 +166,6 @@
             .admin-grid { grid-template-columns: 1fr; }
             #qr-code { max-width: 220px; }
             .qr-link { font-size: 12px; }
-            .page-indicator-panel { font-size: 13px; padding: 8px 16px; top: 80px; }
         }
     </style>
 </head>
@@ -215,14 +210,14 @@
 <div id="pdf-pin-modal" class="info-text-modal hidden">
     <div class="info-text-box" style="max-width:440px; text-align: center;">
         <h2>📌 Pin a PDF Page</h2>
-        <p style="color:#666; margin-bottom:15px; font-size:14px;">Students will see the pinned page in a separate viewer while keeping full scroll freedom in the main document.</p>
+        <p style="color:#666; margin-bottom:15px; font-size:14px;">Click a page in the viewer below to select it, then pin it.</p>
         
         <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
             <div style="text-align:left;">
-                <strong>📖 Currently Viewing:</strong><br>
-                Page <span id="pin-current-page-display" style="font-weight:700; font-size:18px;">-</span>
+                <strong>📖 Selected Page:</strong><br>
+                <span id="pin-current-page-display" style="font-weight:700; font-size:18px;">? (Click a page)</span>
             </div>
-            <button type="button" onclick="pinCurrentViewedPage()" class="btn-primary" style="padding:8px 14px; font-size:12px;">📌 Pin This</button>
+            <button type="button" onclick="pinCurrentViewedPage()" class="btn-primary" style="padding:8px 14px; font-size:12px;">📌 Pin Selected</button>
         </div>
 
         <div style="margin-bottom:15px;">
@@ -280,8 +275,8 @@
     </div>
 
     <!-- INDEPENDENT PAGE INDICATOR PANEL -->
-    <div id="pdf-page-indicator" class="page-indicator-panel hidden">
-        📖 Page <span id="current-page-num">-</span> / <span id="total-pages-num">-</span>
+    <div id="pdf-page-indicator" class="page-indicator-panel">
+        📖 Page <span id="current-page-num">?</span> / <span id="total-pages-num">-</span>
     </div>
    
     <!-- Admin Controls -->
@@ -442,7 +437,7 @@
     let currentPdfFilename = '';
     let pdfDoc = null;
     let currentInfoText = '';
-    let currentViewedPage = 1;
+    let currentViewedPage = 0; // Starts at 0, waits for user input
     let isPdfRendering = false;
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
@@ -508,48 +503,20 @@
     function saveClassNameFromModal() { if (!isAdmin) return; const n = document.getElementById('modal-class-name').value.trim(); fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=save_class_config&class_name=' + encodeURIComponent(n) }).then(r => r.json()).then(d => { if (d.success) { alert('✅ Class name saved!'); loadClassName(); closeClassNameModal(); } else alert('❌ Failed to save class name'); }); }
 
     // ========================================================================
-    // PDF PINNING & RENDERING (WITH INDEPENDENT PAGE INDICATOR)
+    // PDF PINNING & RENDERING (CLICK TO SELECT)
     // ========================================================================
-    function setupPageObserver() {
-        const canvases = document.querySelectorAll('.pdf-page-canvas');
-        const indicator = document.getElementById('pdf-page-indicator');
-        if (!canvases.length || !pdfDoc) return;
-
-        // Show independent panel
-        if (indicator) {
-            indicator.classList.remove('hidden');
-            document.getElementById('current-page-num').textContent = currentViewedPage;
-            document.getElementById('total-pages-num').textContent = pdfDoc.numPages;
-        }
-
-        if (window.pageObserver) window.pageObserver.disconnect();
-        
-        window.pageObserver = new IntersectionObserver((entries) => {
-            let maxRatio = 0;
-            entries.forEach(entry => {
-                if (entry.isIntersecting && entry.intersectionRatio > maxRatio) {
-                    maxRatio = entry.intersectionRatio;
-                    const p = parseInt(entry.target.dataset.page);
-                    if (p) {
-                        currentViewedPage = p;
-                        const numSpan = document.getElementById('current-page-num');
-                        if (numSpan) numSpan.textContent = p;
-                        const disp = document.getElementById('pin-current-page-display');
-                        if (disp) disp.textContent = p;
-                    }
-                }
-            });
-        }, { threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] });
-        
-        canvases.forEach(c => window.pageObserver.observe(c));
-    }
-
+    
     async function loadPdf() {
         if (isPdfRendering) return;
         isPdfRendering = true;
         const viewer = document.getElementById('pdf-viewer');
         const indicator = document.getElementById('pdf-page-indicator');
         
+        // Reset selection state
+        currentViewedPage = 0;
+        document.getElementById('current-page-num').textContent = '?';
+        document.getElementById('pin-current-page-display').textContent = '? (Click a page)';
+
         try {
             const infoRes = await fetch(API + '?action=get_pdf_info&t=' + Date.now());
             const infoData = await infoRes.json();
@@ -573,6 +540,10 @@
             pdfDoc = await pdfjsLib.getDocument('data/' + currentPdfFilename + '?t=' + Date.now()).promise;
             container.innerHTML = '';
 
+            // Set Total Pages
+            const totalPagesSpan = document.getElementById('total-pages-num');
+            if(totalPagesSpan) totalPagesSpan.textContent = pdfDoc.numPages;
+
             // STRICT SEQUENTIAL RENDERING
             for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
                 const page = await pdfDoc.getPage(pageNum);
@@ -583,16 +554,25 @@
                 canvas.dataset.page = pageNum;
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
-                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                
+                // Add click listener to update page number
+                canvas.addEventListener('click', () => {
+                    currentViewedPage = pageNum;
+                    document.getElementById('current-page-num').textContent = pageNum;
+                    document.getElementById('pin-current-page-display').textContent = pageNum;
+                    // Panel is visible, but ensures user sees the update
+                    document.getElementById('pdf-page-indicator').classList.remove('hidden');
+                });
+
+                const ctx = canvas.getContext('2d');
+                await page.render({ canvasContext: ctx, viewport }).promise;
                 container.appendChild(canvas);
             }
 
-            setupPageObserver();
             checkPdfPin();
         } catch (err) {
             console.error('PDF render error:', err);
             viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF. Check file integrity.</p></div></div>';
-            if (indicator) indicator.classList.add('hidden');
         } finally {
             isPdfRendering = false;
         }
@@ -630,7 +610,13 @@
 
     function openPdfPinModal() {
         if (!isAdmin) return;
-        document.getElementById('pin-current-page-display').textContent = currentViewedPage;
+        // Sync display with current clicked page
+        if(currentViewedPage > 0) {
+             document.getElementById('pin-current-page-display').textContent = currentViewedPage;
+        } else {
+             document.getElementById('pin-current-page-display').textContent = '? (Click a page)';
+        }
+        
         document.getElementById('modal-pdf-pin-input').value = '';
         showPinStatus('Ready to pin.', 'info');
         fetch(API + '?action=get_pdf_config').then(r => r.json()).then(d => {
@@ -639,10 +625,45 @@
         document.getElementById('pdf-pin-modal').classList.remove('hidden');
     }
     function closePdfPinModal() { document.getElementById('pdf-pin-modal').classList.add('hidden'); }
-    function pinCurrentViewedPage() { if (!pdfDoc || currentViewedPage < 1) return showPinStatus('⚠️ PDF not loaded yet.', 'error'); setPdfPin(currentViewedPage); }
-    function pinSpecificPage() { const page = parseInt(document.getElementById('modal-pdf-pin-input').value); if (!pdfDoc) return showPinStatus('⚠️ PDF not loaded yet.', 'error'); if (isNaN(page) || page < 1 || page > pdfDoc.numPages) return showPinStatus(`⚠️ Valid page (1-${pdfDoc.numPages})`, 'error'); setPdfPin(page); }
-    function setPdfPin(page) { showPinStatus(`Pinning Page ${page}...`, 'info'); fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: `action=set_pdf_config&page=${page}` }).then(r => r.json()).then(d => { if (d.success) { showPinStatus(`✅ Pinned Page ${page}!`, 'success'); setTimeout(() => { closePdfPinModal(); checkPdfPin(); }, 600); } else showPinStatus('❌ Failed.', 'error'); }).catch(() => showPinStatus('❌ Network error.', 'error')); }
-    function clearPdfPinFromModal() { fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=set_pdf_config&page=0' }).then(r => r.json()).then(d => { if (d.success) { showPinStatus('✅ Pin cleared.', 'success'); setTimeout(() => { closePdfPinModal(); const m = document.getElementById('module-pdf-pinned'); if (m) m.classList.add('hidden'); }, 500); } }); }
+    
+    function pinCurrentViewedPage() {
+        // Check if user has clicked a page
+        if (currentViewedPage < 1) {
+            return showPinStatus('⚠️ Please click a page in the viewer to select it first.', 'error');
+        }
+        setPdfPin(currentViewedPage);
+    }
+
+    function pinSpecificPage() {
+        const input = document.getElementById('modal-pdf-pin-input');
+        const page = parseInt(input.value);
+        if (!pdfDoc) return showPinStatus('⚠️ PDF not loaded yet.', 'error');
+        if (isNaN(page) || page < 1 || page > pdfDoc.numPages) return showPinStatus(`⚠️ Enter a valid page (1-${pdfDoc.numPages})`, 'error');
+        setPdfPin(page);
+    }
+
+    function setPdfPin(page) {
+        showPinStatus(`Pinning Page ${page}...`, 'info');
+        fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: `action=set_pdf_config&page=${page}` })
+        .then(r => r.json()).then(d => {
+            if (d.success) {
+                showPinStatus(`✅ Pinned Page ${page}!`, 'success');
+                setTimeout(() => { closePdfPinModal(); checkPdfPin(); }, 600);
+            } else { showPinStatus('❌ Failed to pin page.', 'error'); }
+        }).catch(() => showPinStatus('❌ Network error.', 'error'));
+    }
+
+    function clearPdfPinFromModal() {
+        if (!isAdmin) return;
+        showPinStatus('Clearing pin...', 'info');
+        fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=set_pdf_config&page=0' })
+        .then(r => r.json()).then(d => {
+            if (d.success) {
+                showPinStatus('✅ Pin cleared.', 'success');
+                setTimeout(() => { closePdfPinModal(); const m = document.getElementById('module-pdf-pinned'); if (m) m.classList.add('hidden'); }, 500);
+            }
+        });
+    }
 
     // ========================================================================
     // CORE UI & MODULE LOGIC
