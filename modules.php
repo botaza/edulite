@@ -43,7 +43,6 @@
         .btn-success { background: #27ae60; color: white; }
         .btn-danger { background: #e74c3c; color: white; }
         .btn-warning { background: #f39c12; color: white; }
-        .btn-purple { background: #9b59b6; color: white; }
         .lap-info { background: #667eea; color: white; padding: 10px 15px; border-radius: 8px; margin-bottom: 15px; text-align: center; }
         .lap-info .lap-number { font-size: 32px; font-weight: 700; }
         .lap-info .lap-label { font-size: 12px; opacity: 0.9; }
@@ -100,6 +99,15 @@
         .pdf-pages-container { padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
         .pdf-page-canvas { display: block; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.4); max-width: 100%; width: 100%; }
         .no-pdf { display: flex; align-items: center; justify-content: center; height: 100%; color: #999; font-size: 18px; text-align: center; padding: 40px; }
+        /* NEW: Page View Indicator */
+        .pdf-page-indicator {
+            position: sticky; top: 10px; right: 15px; z-index: 20;
+            background: rgba(0, 0, 0, 0.75); color: #fff; padding: 6px 14px;
+            border-radius: 20px; font-size: 13px; font-weight: 600;
+            pointer-events: none; backdrop-filter: blur(4px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            transition: opacity 0.2s;
+        }
         .pinned-pdf-container { background: #fff; border-radius: 12px; padding: 15px; text-align: center; max-width: 100%; overflow-x: auto; }
         .pinned-pdf-canvas { display: block; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.2); max-width: 100%; height: auto; }
         .emoji-meter-section { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 15px; text-align: center; }
@@ -140,10 +148,22 @@
         .snap-meta strong { display: block; }
         .snap-meta small { color: #666; font-size: 11px; display: block; margin-top: 2px; }
         .modal-actions-flex { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 10px; }
-        @media (max-width: 480px) { .game-title { font-size: 22px; } .input-wrapper { flex-direction: column; } .input-wrapper input, .input-wrapper button { width: 100%; } .emoji-btn { min-width: 80px; min-height: 70px; padding: 12px 20px; } .emoji-btn .emoji-icon { font-size: 32px; } .emoji-stats { gap: 10px; } .emoji-stat { min-width: 60px; padding: 8px 12px; } .admin-grid { grid-template-columns: 1fr; } #qr-code { max-width: 220px; } .qr-link { font-size: 12px; } }
+        @media (max-width: 480px) {
+            .game-title { font-size: 22px; }
+            .input-wrapper { flex-direction: column; }
+            .input-wrapper input, .input-wrapper button { width: 100%; }
+            .emoji-btn { min-width: 80px; min-height: 70px; padding: 12px 20px; }
+            .emoji-btn .emoji-icon { font-size: 32px; }
+            .emoji-stats { gap: 10px; }
+            .emoji-stat { min-width: 60px; padding: 8px 12px; }
+            .admin-grid { grid-template-columns: 1fr; }
+            #qr-code { max-width: 220px; }
+            .qr-link { font-size: 12px; }
+        }
     </style>
 </head>
 <body>
+<!-- Login Modal -->
 <div id="login-modal" class="login-modal hidden">
     <div class="login-box">
         <h2>👋 Welcome!</h2>
@@ -153,6 +173,7 @@
     </div>
 </div>
 
+<!-- Info Text Edit Modal -->
 <div id="info-text-modal" class="info-text-modal hidden">
     <div class="info-text-box">
         <h2>✏️ Edit Info Text</h2>
@@ -165,6 +186,7 @@
     </div>
 </div>
 
+<!-- Class Name Edit Modal -->
 <div id="class-name-modal" class="info-text-modal hidden">
     <div class="info-text-box">
         <h2>🏫 Set Class Name</h2>
@@ -177,22 +199,38 @@
     </div>
 </div>
 
+<!-- PDF Pin Modal -->
 <div id="pdf-pin-modal" class="info-text-modal hidden">
-    <div class="info-text-box" style="max-width:420px; text-align: center;">
-        <h2>📌 Pin Current Page</h2>
-        <p style="color:#666; margin-bottom:15px; font-size:14px;">Automatically pins the page you are currently viewing. Students will see it as a separate persistent viewer.</p>
-        <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px;">
-            <strong>Currently Viewing:</strong> Page <span id="pin-current-page-display" style="font-weight:700; font-size:18px;">-</span>
+    <div class="info-text-box" style="max-width:440px; text-align: center;">
+        <h2>📌 Pin a PDF Page</h2>
+        <p style="color:#666; margin-bottom:15px; font-size:14px;">Students will see the pinned page in a separate viewer while keeping full scroll freedom in the main document.</p>
+        
+        <!-- Option 1: Pin Current Viewed Page -->
+        <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <div style="text-align:left;">
+                <strong>📖 Currently Viewing:</strong><br>
+                Page <span id="pin-current-page-display" style="font-weight:700; font-size:18px;">-</span>
+            </div>
+            <button type="button" onclick="pinCurrentViewedPage()" class="btn-primary" style="padding:8px 14px; font-size:12px;">📌 Pin This</button>
         </div>
-        <p id="modal-pdf-pin-status" style="font-size:12px; color:#999; margin:5px 0 10px 0;"></p>
+
+        <!-- Option 2: Pin Specific Page Number -->
+        <div style="margin-bottom:15px;">
+            <label style="font-size:13px; color:#666; display:block; margin-bottom:5px;">Or enter a specific page number:</label>
+            <input type="number" id="modal-pdf-pin-input" placeholder="e.g., 12" min="1" style="width:100%; padding:10px; border:2px solid #667eea; border-radius:8px; font-size:15px; text-align:center; box-sizing:border-box;">
+        </div>
+
+        <p id="modal-pdf-pin-status" style="font-size:12px; color:#999; margin:5px 0 15px 0;"></p>
+        
         <div class="modal-actions" style="justify-content: center; gap: 10px; flex-wrap: wrap;">
             <button type="button" onclick="closePdfPinModal()" style="background:#95a5a6;color:white;">Cancel</button>
             <button type="button" onclick="clearPdfPinFromModal()" class="btn-danger">Clear Pin</button>
-            <button type="button" onclick="savePdfPin()" class="btn-primary">📌 Pin Current Page</button>
+            <button type="button" onclick="pinSpecificPage()" class="btn-success">📌 Pin Entered #</button>
         </div>
     </div>
 </div>
 
+<!-- Export & Delete Snapshots Modal -->
 <div id="export-modal" class="login-modal hidden">
     <div class="login-box" style="max-width:480px;">
         <h2>📤 Manage Snapshots</h2>
@@ -212,9 +250,11 @@
     </div>
 </div>
 
+<!-- Emoji Animation Overlay -->
 <div class="emoji-animation-overlay" id="emoji-overlay"></div>
 
 <div class="game-container">
+    <!-- Header -->
     <div class="game-header">
         <h1 class="game-title">
             <span>🎯</span><span>EduLite Modules</span>
@@ -229,6 +269,7 @@
         </div>
     </div>
    
+    <!-- Admin Controls -->
     <div class="admin-controls hidden" id="admin-controls">
         <p>⚠️ Admin Mode: Quick Controls</p>
         <button type="button" onclick="toggleDeleteMode()" id="btn-delete-mode">🗑️ Delete</button>
@@ -253,6 +294,7 @@
         <button type="button" onclick="openExportModal()" id="btn-export" style="background:#9b59b6;">📤 Export</button>
     </div>
    
+    <!-- Admin Panel -->
     <div class="admin-panel hidden" id="admin-panel">
         <h3><span>⚙️ Admin Dashboard</span><button type="button" onclick="toggleAdminPanel()" style="background: #95a5a6; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 12px;">✕ Close</button></h3>
         <div class="admin-grid">
@@ -288,10 +330,13 @@
         </div>
     </div>
    
+    <!-- INFO TEXT MODULE -->
     <div class="module-section hidden info-text-section" id="module-info-text">
         <h2>ℹ️ Information</h2>
         <div class="info-text-content" id="info-text-content"></div>
     </div>
+   
+    <!-- Word Cloud Module -->
     <div class="module-section hidden" id="module-wordcloud">
         <h2>☁️ Word Cloud</h2>
         <div class="input-section">
@@ -303,6 +348,8 @@
         </div>
         <div id="cloud-container"><p style="color: #999; text-align: center; padding: 40px; font-size: 22px;">Loading...</p></div>
     </div>
+   
+    <!-- Sentences Cloud Module -->
     <div class="module-section hidden" id="module-sentences-cloud">
         <h2>💬 Sentences Cloud</h2>
         <div class="input-section">
@@ -314,16 +361,24 @@
         </div>
         <div id="sentences-container"><p style="color: #999; text-align: center; padding: 40px; font-size: 22px;">Loading...</p></div>
     </div>
+   
+    <!-- PDF Viewer Module -->
     <div class="module-section hidden" id="module-pdf">
         <h2>📄 PDF Viewer</h2>
         <div class="pdf-viewer-container" id="pdf-viewer">
+            <!-- Page View Indicator -->
+            <div id="pdf-page-indicator" class="pdf-page-indicator" style="display:none;">Page 1 / ?</div>
             <div class="no-pdf"><div><p style="font-size: 48px; margin-bottom: 20px;">📄</p><p>No lesson material uploaded yet</p></div></div>
         </div>
     </div>
+
+    <!-- PINNED PDF MODULE -->
     <div class="module-section hidden" id="module-pdf-pinned">
         <h2>📌 Pinned Page</h2>
         <div class="pinned-pdf-container" id="pinned-pdf-wrapper"></div>
     </div>
+   
+    <!-- Emoji Meter Module -->
     <div class="module-section hidden" id="module-emoji">
         <h2>📱 How Are You Doing?</h2>
         <p style="color: #666; margin-bottom: 20px;">Tap once every 60 seconds</p>
@@ -342,6 +397,8 @@
             <div class="emoji-stat"><div class="stat-emoji">🙋</div><div class="stat-count" id="stat-help">0</div><div class="stat-label">Help</div></div>
         </div>
     </div>
+   
+    <!-- QR Link Module -->
     <div class="module-section hidden" id="module-qr">
         <h2>🔗 Join Link</h2>
         <div id="qr-container"><div id="qr-code"></div></div>
@@ -349,6 +406,7 @@
     </div>
 </div>
 
+<!-- Emoji Log Section -->
 <div class="emoji-log-section" id="emoji-log-section">
     <h3><span>📋 Emoji Vote Log</span><div><button type="button" onclick="deleteEmojiLog('all')" style="background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-right: 5px;">🗑️ Clear All</button><button type="button" onclick="refreshEmojiLog()" style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px;">🔄 Refresh</button><button type="button" onclick="toggleEmojiLog()" style="background: #95a5a6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 5px;">✕ Close</button></div></h3>
     <table class="emoji-log-table" id="emoji-log-table">
@@ -372,6 +430,7 @@
     let pdfDoc = null;
     let currentInfoText = '';
     let currentViewedPage = 1;
+    let isPdfRendering = false;
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
    
@@ -419,6 +478,9 @@
     function closeInfoTextEditor() { const m = document.getElementById('info-text-modal'); if (m) m.classList.add('hidden'); }
     function saveInfoTextFromModal() { if (!isAdmin) return; const t = document.getElementById('modal-info-text').value.trim(); fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=save_info_text&text=' + encodeURIComponent(t) }).then(r => r.json()).then(data => { if (data.success) { alert('✅ Info text saved successfully!'); currentInfoText = t; const c = document.getElementById('info-text-content'); if (c) c.innerHTML = t.replace(/\n/g, '<br>'); closeInfoTextEditor(); } else alert('❌ Failed to save info text'); }).catch(() => alert('❌ Network error while saving')); }
 
+    // ========================================================================
+    // CLASS NAME MODAL FUNCTIONS
+    // ========================================================================
     function loadClassName() {
         fetch(API + '?action=get_class_config').then(r => r.json()).then(data => {
             if (data.success) {
@@ -432,47 +494,94 @@
     function closeClassNameModal() { const m = document.getElementById('class-name-modal'); if (m) m.classList.add('hidden'); }
     function saveClassNameFromModal() { if (!isAdmin) return; const n = document.getElementById('modal-class-name').value.trim(); fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=save_class_config&class_name=' + encodeURIComponent(n) }).then(r => r.json()).then(d => { if (d.success) { alert('✅ Class name saved!'); loadClassName(); closeClassNameModal(); } else alert('❌ Failed to save class name'); }); }
 
-    // PDF PINNING
+    // ========================================================================
+    // PDF PINNING & RENDERING (WITH PAGE VIEW INDICATOR)
+    // ========================================================================
     function setupPageObserver() {
         const canvases = document.querySelectorAll('.pdf-page-canvas');
+        const indicator = document.getElementById('pdf-page-indicator');
         if (!canvases.length) return;
         if (window.pageObserver) window.pageObserver.disconnect();
+        
+        if (indicator) {
+            indicator.style.display = 'block';
+            indicator.textContent = `Page ${currentViewedPage} / ${pdfDoc.numPages}`;
+        }
+
         window.pageObserver = new IntersectionObserver((entries) => {
             let maxRatio = 0;
             entries.forEach(entry => {
                 if (entry.isIntersecting && entry.intersectionRatio > maxRatio) {
                     maxRatio = entry.intersectionRatio;
                     const p = parseInt(entry.target.dataset.page);
-                    if (p) currentViewedPage = p;
+                    if (p) {
+                        currentViewedPage = p;
+                        if (indicator) indicator.textContent = `Page ${p} / ${pdfDoc.numPages}`;
+                        const disp = document.getElementById('pin-current-page-display');
+                        if (disp) disp.textContent = p;
+                    }
                 }
             });
-            const d = document.getElementById('pin-current-page-display');
-            if (d) d.textContent = currentViewedPage;
         }, { threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] });
+        
         canvases.forEach(c => window.pageObserver.observe(c));
     }
 
     async function loadPdf() {
+        if (isPdfRendering) return;
+        isPdfRendering = true;
         const viewer = document.getElementById('pdf-viewer');
-        fetch(API + '?action=get_pdf_info&t=' + Date.now()).then(r => r.json()).then(async data => {
-            if (!data.success || !data.hasPdf) { viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>'; pdfDoc = null; currentPdfFilename = ''; return; }
-            if (currentPdfFilename === data.filename && pdfDoc) { checkPdfPin(); return; }
-            currentPdfFilename = data.filename;
-            viewer.innerHTML = '<div class="pdf-pages-container" id="pdf-pages"></div>';
-            try {
-                pdfDoc = await pdfjsLib.getDocument('data/' + currentPdfFilename + '?t=' + Date.now()).promise;
-                const container = document.getElementById('pdf-pages'); container.innerHTML = '';
-                for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-                    const page = await pdfDoc.getPage(pageNum); const scale = 1.5; const viewport = page.getViewport({ scale });
-                    const canvas = document.createElement('canvas'); canvas.className = 'pdf-page-canvas'; canvas.dataset.page = pageNum;
-                    canvas.height = viewport.height; canvas.width = viewport.width;
-                    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-                    container.appendChild(canvas);
-                }
-                setupPageObserver();
+        const indicator = document.getElementById('pdf-page-indicator');
+        
+        try {
+            const infoRes = await fetch(API + '?action=get_pdf_info&t=' + Date.now());
+            const infoData = await infoRes.json();
+            
+            if (!infoData.success || !infoData.hasPdf) {
+                viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;">📄</p><p>No lesson material uploaded yet</p></div></div>';
+                pdfDoc = null; currentPdfFilename = '';
+                if (indicator) indicator.style.display = 'none';
+                return;
+            }
+
+            if (currentPdfFilename === infoData.filename && pdfDoc) {
                 checkPdfPin();
-            } catch (err) { viewer.innerHTML = `<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p></div></div>`; }
-        }).catch(err => { viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF</p></div></div>'; });
+                return;
+            }
+
+            currentPdfFilename = infoData.filename;
+            viewer.innerHTML = '<div class="pdf-pages-container" id="pdf-pages"></div>';
+            // Re-insert indicator inside container so sticky positioning works
+            viewer.appendChild(indicator);
+            if (indicator) indicator.style.display = 'none';
+
+            const container = document.getElementById('pdf-pages');
+            pdfDoc = await pdfjsLib.getDocument('data/' + currentPdfFilename + '?t=' + Date.now()).promise;
+            container.innerHTML = '';
+
+            for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                const page = await pdfDoc.getPage(pageNum);
+                const scale = 1.5;
+                const viewport = page.getViewport({ scale });
+                const canvas = document.createElement('canvas');
+                canvas.className = 'pdf-page-canvas';
+                canvas.dataset.page = pageNum;
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                const ctx = canvas.getContext('2d');
+                await page.render({ canvasContext: ctx, viewport }).promise;
+                container.appendChild(canvas);
+            }
+
+            setupPageObserver();
+            checkPdfPin();
+        } catch (err) {
+            console.error('PDF render error:', err);
+            viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF. Check file integrity.</p></div></div>';
+            if (indicator) indicator.style.display = 'none';
+        } finally {
+            isPdfRendering = false;
+        }
     }
 
     async function renderPinnedPage(pageNum) {
@@ -481,7 +590,9 @@
         let canvas = wrapper.querySelector('.pinned-pdf-canvas');
         if (!canvas) { canvas = document.createElement('canvas'); canvas.className = 'pinned-pdf-canvas'; wrapper.appendChild(canvas); }
         try {
-            const page = await pdfDoc.getPage(pageNum); const scale = 1.5; const viewport = page.getViewport({ scale });
+            const page = await pdfDoc.getPage(pageNum);
+            const scale = 1.5;
+            const viewport = page.getViewport({ scale });
             canvas.height = viewport.height; canvas.width = viewport.width;
             await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
         } catch (err) { console.error('Pinned page render error:', err); }
@@ -498,35 +609,63 @@
         }).catch(err => console.error('Check PDF pin failed', err));
     }
 
+    function showPinStatus(msg, type) {
+        const s = document.getElementById('modal-pdf-pin-status');
+        s.textContent = msg;
+        s.style.color = type === 'success' ? '#27ae60' : type === 'error' ? '#e74c3c' : '#999';
+    }
+
     function openPdfPinModal() {
         if (!isAdmin) return;
         document.getElementById('pin-current-page-display').textContent = currentViewedPage;
+        document.getElementById('modal-pdf-pin-input').value = '';
+        showPinStatus('Ready to pin.', 'info');
         fetch(API + '?action=get_pdf_config').then(r => r.json()).then(d => {
-            if (d.success) {
-                const cur = d.pinned_page || 0; const s = document.getElementById('modal-pdf-pin-status');
-                s.textContent = cur > 0 ? `Currently pinned for students: Page ${cur}` : 'No page pinned.';
-                s.style.color = cur > 0 ? '#27ae60' : '#999';
-            }
+            if (d.success && d.pinned_page > 0) showPinStatus(`Currently pinned: Page ${d.pinned_page}`, 'info');
         });
         document.getElementById('pdf-pin-modal').classList.remove('hidden');
     }
     function closePdfPinModal() { document.getElementById('pdf-pin-modal').classList.add('hidden'); }
-    function savePdfPin() {
-        if (!isAdmin) return;
-        const s = document.getElementById('modal-pdf-pin-status'); const page = currentViewedPage;
-        if (!pdfDoc || page < 1) { s.textContent = '⚠️ PDF not loaded or invalid page.'; s.style.color = '#e74c3c'; return; }
-        fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: `action=set_pdf_config&page=${page}` }).then(r => r.json()).then(d => {
-            if (d.success) { s.textContent = `✅ Pinned Page ${page}!`; s.style.color = '#27ae60'; setTimeout(() => { closePdfPinModal(); checkPdfPin(); }, 800); }
-            else { s.textContent = '❌ Failed to pin page.'; s.style.color = '#e74c3c'; }
-        });
+    
+    function pinCurrentViewedPage() {
+        if (!pdfDoc || currentViewedPage < 1) return showPinStatus('⚠️ PDF not loaded yet.', 'error');
+        setPdfPin(currentViewedPage);
     }
+
+    function pinSpecificPage() {
+        const input = document.getElementById('modal-pdf-pin-input');
+        const page = parseInt(input.value);
+        if (!pdfDoc) return showPinStatus('⚠️ PDF not loaded yet.', 'error');
+        if (isNaN(page) || page < 1 || page > pdfDoc.numPages) return showPinStatus(`⚠️ Enter a valid page (1-${pdfDoc.numPages})`, 'error');
+        setPdfPin(page);
+    }
+
+    function setPdfPin(page) {
+        showPinStatus(`Pinning Page ${page}...`, 'info');
+        fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: `action=set_pdf_config&page=${page}` })
+        .then(r => r.json()).then(d => {
+            if (d.success) {
+                showPinStatus(`✅ Pinned Page ${page}!`, 'success');
+                setTimeout(() => { closePdfPinModal(); checkPdfPin(); }, 600);
+            } else { showPinStatus('❌ Failed to pin page.', 'error'); }
+        }).catch(() => showPinStatus('❌ Network error.', 'error'));
+    }
+
     function clearPdfPinFromModal() {
         if (!isAdmin) return;
-        fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=set_pdf_config&page=0' }).then(r => r.json()).then(d => {
-            if (d.success) { document.getElementById('modal-pdf-pin-status').textContent = '✅ Pin cleared.'; document.getElementById('modal-pdf-pin-status').style.color = '#27ae60'; setTimeout(() => { closePdfPinModal(); const m = document.getElementById('module-pdf-pinned'); if (m) m.classList.add('hidden'); }, 500); }
+        showPinStatus('Clearing pin...', 'info');
+        fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=set_pdf_config&page=0' })
+        .then(r => r.json()).then(d => {
+            if (d.success) {
+                showPinStatus('✅ Pin cleared.', 'success');
+                setTimeout(() => { closePdfPinModal(); const m = document.getElementById('module-pdf-pinned'); if (m) m.classList.add('hidden'); }, 500);
+            }
         });
     }
 
+    // ========================================================================
+    // CORE UI & MODULE LOGIC
+    // ========================================================================
     function renderModules() {
         ['module-info-text', 'module-wordcloud', 'module-sentences-cloud', 'module-pdf', 'module-emoji', 'module-qr'].forEach(id => {
             const el = document.getElementById(id); if (!el) return;
