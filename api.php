@@ -1,5 +1,5 @@
 <?php
-// File 2 of 8: api.php - COMPLETE WITH MODULE CONFIG + INFO TEXT
+// File 2 of 8: api.php - COMPLETE WITH MODULE CONFIG + INFO TEXT + SENTENCES CLOUD + SNAPSHOTS + PDF PINNING
 // NO-CACHE HEADERS
 header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
@@ -188,7 +188,310 @@ if ($action === 'delete_word' && isset($_SESSION['is_admin'])) {
     exit;
 }
 
-// 5. EMOJI METER: Submit Vote
+// ============================================================================
+// SENTENCES CLOUD MODULE - NEW ENDPOINTS
+// ============================================================================
+
+// 2a. Sentences Cloud: Submit Sentence (NO character limit)
+if ($action === 'add_sentence') {
+    $sentence = strip_tags($_POST['sentence'] ?? '');
+    $user = strip_tags($_POST['username'] ?? '');
+    // Only require non-empty, no maxlength restriction
+    if (strlen($sentence) > 0) {
+        $normalized = strtolower(trim($sentence));
+        $sentences = readJsonLocked($dataDir . 'sentences.json');
+        $found = false;
+        foreach ($sentences as &$item) {
+            if (strtolower($item['sentence']) === $normalized) {
+                $item['count'] = (isset($item['count']) ? $item['count'] : 1) + 1;
+                $item['lastTime'] = time();
+                if (!isset($item['users'])) $item['users'] = array();
+                $item['users'][] = $user;
+                $found = true;
+                break;
+            }
+        }
+        if (!$found) {
+            $sentences[] = array(
+                'sentence' => $normalized, 
+                'display' => $sentence, 
+                'count' => 1,
+                'firstTime' => time(), 
+                'lastTime' => time(), 
+                'users' => array($user)
+            );
+        }
+        // Limit to 100 unique sentences to prevent database bloat
+        if (count($sentences) > 100) {
+            usort($sentences, function($a, $b) { return $b['lastTime'] - $a['lastTime']; });
+            $sentences = array_slice($sentences, 0, 100);
+        }
+        writeJsonLocked($dataDir . 'sentences.json', $sentences);
+    }
+    echo json_encode(array('success' => true));
+    exit;
+}
+
+// 2b. Sentences Cloud: Get Sentences
+if ($action === 'get_sentences') {
+    $sentences = readJsonLocked($dataDir . 'sentences.json');
+    usort($sentences, function($a, $b) {
+        $countA = isset($a['count']) ? $a['count'] : 1;
+        $countB = isset($b['count']) ? $b['count'] : 1;
+        if ($countB !== $countA) return $countB - $countA;
+        return $b['lastTime'] - $a['lastTime'];
+    });
+    echo json_encode($sentences);
+    exit;
+}
+
+// 2c. Sentences Cloud: Delete Sentence (Admin only)
+if ($action === 'delete_sentence' && isset($_SESSION['is_admin'])) {
+    $sentenceToDelete = isset($_POST['sentence']) ? strtolower(trim($_POST['sentence'])) : '';
+    if ($sentenceToDelete) {
+        $sentences = readJsonLocked($dataDir . 'sentences.json');
+        $filtered = array();
+        foreach ($sentences as $item) {
+            if (strtolower($item['sentence']) !== $sentenceToDelete) $filtered[] = $item;
+        }
+        writeJsonLocked($dataDir . 'sentences.json', $filtered);
+        echo json_encode(array('success' => true));
+    } else {
+        echo json_encode(array('success' => false, 'message' => 'Invalid sentence'));
+    }
+    exit;
+}
+
+// ============================================================================
+// CLASS NAME & SNAPSHOTS & EXPORT MODULE - NEW ENDPOINTS
+// ============================================================================
+
+// Get Class Config
+if ($action === 'get_class_config') {
+    $config = readJsonLocked($dataDir . 'class_config.json');
+    echo json_encode(array(
+        'success' => true,
+        'class_name' => $config['class_name'] ?? ''
+    ));
+    exit;
+}
+
+// Save Class Name (Admin only)
+if ($action === 'save_class_config' && isset($_SESSION['is_admin'])) {
+    $className = isset($_POST['class_name']) ? trim(strip_tags($_POST['class_name'])) : '';
+    $config = array(
+        'class_name' => $className,
+        'last_updated' => time()
+    );
+    $success = writeJsonLocked($dataDir . 'class_config.json', $config);
+    echo json_encode(array('success' => $success));
+    exit;
+}
+
+// Create Snapshot (Admin only) - NOW INCLUDES ACTIVE USERS
+if ($action === 'create_snapshot' && isset($_SESSION['is_admin'])) {
+    $words = readJsonLocked($dataDir . 'words.json');
+    $sentences = readJsonLocked($dataDir . 'sentences.json');
+    $classConfig = readJsonLocked($dataDir . 'class_config.json');
+    $className = $classConfig['class_name'] ?? 'Unnamed Class';
+    
+    // Capture active users
+    $usersRaw = readJsonLocked($dataDir . 'active_users.json');
+    $activeUsers = array();
+    foreach ($usersRaw as $ip => $uData) {
+        $activeUsers[] = array(
+            'username' => $uData['username'] ?? 'Anonymous',
+            'ip' => $uData['ip'] ?? $ip,
+            'lastActive' => $uData['lastActive'] ?? 0
+        );
+    }
+    
+    $snapId = 'snap_' . time();
+    $snap = array(
+        'id' => $snapId,
+        'timestamp' => date('Y-m-d H:i:s'),
+        'class_name' => $className,
+        'word_count' => count($words),
+        'sentence_count' => count($sentences),
+        'active_users_count' => count($activeUsers),
+        'data' => array(
+            'words' => $words, 
+            'sentences' => $sentences,
+            'active_users' => $activeUsers
+        )
+    );
+    
+    $snaps = readJsonLocked($dataDir . 'snapshots.json');
+    if (!is_array($snaps)) $snaps = array();
+    $snaps[] = $snap;
+    writeJsonLocked($dataDir . 'snapshots.json', $snaps);
+    
+    echo json_encode(array('success' => true, 'id' => $snapId));
+    exit;
+}
+
+// Get Snapshots List (Admin only)
+if ($action === 'get_snapshots' && isset($_SESSION['is_admin'])) {
+    $snaps = readJsonLocked($dataDir . 'snapshots.json');
+    if (!is_array($snaps)) $snaps = array();
+    // Return metadata only to keep response light
+    $list = array_map(function($s) {
+        return array(
+            'id' => $s['id'], 
+            'timestamp' => $s['timestamp'], 
+            'class_name' => $s['class_name'], 
+            'word_count' => $s['word_count'], 
+            'sentence_count' => $s['sentence_count'],
+            'active_users_count' => isset($s['active_users_count']) ? $s['active_users_count'] : 0
+        );
+    }, $snaps);
+    echo json_encode(array('success' => true, 'snapshots' => $list));
+    exit;
+}
+
+// Delete Snapshot(s) (Admin only)
+if ($action === 'delete_snapshot' && isset($_SESSION['is_admin'])) {
+    $snaps = readJsonLocked($dataDir . 'snapshots.json');
+    if (!is_array($snaps)) $snaps = array();
+    
+    $idsToDelete = isset($_POST['selected_ids']) ? json_decode($_POST['selected_ids'], true) : array();
+    if (empty($idsToDelete)) {
+        echo json_encode(array('success' => false, 'message' => 'No snapshots selected'));
+        exit;
+    }
+    
+    // Filter out the snapshots to delete
+    $filtered = array_filter($snaps, function($snap) use ($idsToDelete) {
+        return !in_array($snap['id'], $idsToDelete);
+    });
+    // Re-index array to keep it clean
+    $filtered = array_values($filtered);
+    
+    writeJsonLocked($dataDir . 'snapshots.json', $filtered);
+    echo json_encode(array('success' => true, 'remaining' => count($filtered)));
+    exit;
+}
+
+// Export Snapshot(s) as Multi-Section CSV (Admin only)
+if ($action === 'export_snapshot' && isset($_SESSION['is_admin'])) {
+    $snaps = readJsonLocked($dataDir . 'snapshots.json');
+    if (!is_array($snaps)) $snaps = array();
+    
+    $exportScope = $_POST['scope'] ?? 'all';
+    $selectedIds = isset($_POST['selected_ids']) ? json_decode($_POST['selected_ids'], true) : array();
+    
+    $targetSnaps = array();
+    if ($exportScope === 'all') {
+        $targetSnaps = $snaps;
+    } else {
+        foreach ($snaps as $s) {
+            if (in_array($s['id'], $selectedIds)) $targetSnaps[] = $s;
+        }
+    }
+    
+    if (empty($targetSnaps)) {
+        echo json_encode(array('success' => false, 'message' => 'No snapshots found to export'));
+        exit;
+    }
+    
+    // --- FILENAME LOGIC ---
+    $classConfig = readJsonLocked($dataDir . 'class_config.json');
+    $className = $classConfig['class_name'] ?? 'Class';
+    $safeClassName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $className);
+    if (empty($safeClassName)) $safeClassName = 'Export';
+    $timestamp = date('Y-m-d_His');
+    $filename = $safeClassName . '_' . $timestamp . '.csv';
+    // ------------------------
+
+    // Generate CSV with UTF-8 BOM for Excel compatibility
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: no-cache, no-store, must-revalidate');
+    
+    // Output UTF-8 BOM
+    echo chr(0xEF) . chr(0xBB) . chr(0xBF);
+    
+    $output = fopen('php://output', 'w');
+    
+    // SECTION 1: SNAPSHOT METADATA
+    fputcsv($output, array('=== SNAPSHOT METADATA ==='));
+    fputcsv($output, array('Snapshot ID', 'Class Name', 'Timestamp', 'Word Count', 'Sentence Count', 'Active Users'));
+    foreach ($targetSnaps as $snap) {
+        fputcsv($output, array(
+            $snap['id'],
+            $snap['class_name'],
+            $snap['timestamp'],
+            $snap['word_count'],
+            $snap['sentence_count'],
+            isset($snap['active_users_count']) ? $snap['active_users_count'] : 0
+        ));
+    }
+    fwrite($output, "\n"); // Separator
+
+    // SECTION 2: WORDS
+    fputcsv($output, array('=== WORDS LIST ==='));
+    fputcsv($output, array('Snapshot ID', 'Word', 'Count', 'Submitted By', 'First Seen', 'Last Seen'));
+    foreach ($targetSnaps as $snap) {
+        $sid = $snap['id'];
+        if (isset($snap['data']['words'])) {
+            foreach ($snap['data']['words'] as $w) {
+                fputcsv($output, array(
+                    $sid,
+                    $w['display'] ?? $w['word'],
+                    $w['count'] ?? 1,
+                    isset($w['users']) ? implode('; ', array_unique($w['users'])) : '',
+                    isset($w['firstTime']) ? date('Y-m-d H:i:s', $w['firstTime']) : '',
+                    isset($w['lastTime']) ? date('Y-m-d H:i:s', $w['lastTime']) : ''
+                ));
+            }
+        }
+    }
+    fwrite($output, "\n"); // Separator
+
+    // SECTION 3: SENTENCES
+    fputcsv($output, array('=== SENTENCES LIST ==='));
+    fputcsv($output, array('Snapshot ID', 'Sentence', 'Count', 'Submitted By', 'First Seen', 'Last Seen'));
+    foreach ($targetSnaps as $snap) {
+        $sid = $snap['id'];
+        if (isset($snap['data']['sentences'])) {
+            foreach ($snap['data']['sentences'] as $s) {
+                fputcsv($output, array(
+                    $sid,
+                    $s['display'] ?? $s['sentence'],
+                    $s['count'] ?? 1,
+                    isset($s['users']) ? implode('; ', array_unique($s['users'])) : '',
+                    isset($s['firstTime']) ? date('Y-m-d H:i:s', $s['firstTime']) : '',
+                    isset($s['lastTime']) ? date('Y-m-d H:i:s', $s['lastTime']) : ''
+                ));
+            }
+        }
+    }
+    fwrite($output, "\n"); // Separator
+
+    // SECTION 4: ACTIVE USERS
+    fputcsv($output, array('=== ACTIVE USERS AT SNAPSHOT ==='));
+    fputcsv($output, array('Snapshot ID', 'Username', 'IP', 'Last Active'));
+    foreach ($targetSnaps as $snap) {
+        $sid = $snap['id'];
+        if (isset($snap['data']['active_users'])) {
+            foreach ($snap['data']['active_users'] as $u) {
+                fputcsv($output, array(
+                    $sid,
+                    $u['username'] ?? 'Anonymous',
+                    $u['ip'] ?? '',
+                    isset($u['lastActive']) ? date('Y-m-d H:i:s', $u['lastActive']) : ''
+                ));
+            }
+        }
+    }
+    
+    fclose($output);
+    exit; // Critical: stop further JSON output
+}
+
+// ============================================================================
+// EMOJI METER: Submit Vote
+// ============================================================================
 if ($action === 'emoji_vote') {
     $ip = $_SERVER['REMOTE_ADDR'];
     $emoji = isset($_POST['emoji']) ? $_POST['emoji'] : '';
@@ -562,6 +865,27 @@ if ($action === 'delete_pdf' && isset($_SESSION['is_admin'])) {
     exit;
 }
 
+// ============================================================================
+// PDF PINNING CONFIG (NEW ENDPOINTS)
+// ============================================================================
+
+if ($action === 'get_pdf_config') {
+    $config = readJsonLocked($dataDir . 'pdf_config.json');
+    echo json_encode(array(
+        'success' => true,
+        'pinned_page' => isset($config['pinned_page']) ? intval($config['pinned_page']) : 0
+    ));
+    exit;
+}
+
+if ($action === 'set_pdf_config' && isset($_SESSION['is_admin'])) {
+    $page = intval($_POST['page'] ?? 0);
+    $config = array('pinned_page' => max(0, $page), 'updated' => time());
+    $success = writeJsonLocked($dataDir . 'pdf_config.json', $config);
+    echo json_encode(array('success' => $success, 'pinned_page' => $config['pinned_page']));
+    exit;
+}
+
 // ==================== INFO TEXT MODULE ====================
 
 // Get Info Text
@@ -590,6 +914,7 @@ if ($action === 'get_modules_config') {
     if (empty($config)) {
         $config = array(
             'wordcloud' => true,
+            'sentences_cloud' => false,
             'pdf_viewer' => false,
             'emoji_meter' => true,
             'qr_link' => false,
@@ -605,6 +930,10 @@ if ($action === 'get_modules_config') {
             $config['qr_link'] = false;
             writeJsonLocked($dataDir . 'modules_config.json', $config);
         }
+        if (!isset($config['sentences_cloud'])) {
+            $config['sentences_cloud'] = false;
+            writeJsonLocked($dataDir . 'modules_config.json', $config);
+        }
     }
    
     echo json_encode(array('success' => true, 'config' => $config));
@@ -614,11 +943,12 @@ if ($action === 'get_modules_config') {
 // 17. MODULES: Update Config
 if ($action === 'update_modules_config' && isset($_SESSION['is_admin'])) {
     $config = array(
-        'wordcloud'   => isset($_POST['wordcloud'])   ? $_POST['wordcloud']   === 'true' : false,
-        'pdf_viewer'  => isset($_POST['pdf_viewer'])  ? $_POST['pdf_viewer']  === 'true' : false,
-        'emoji_meter' => isset($_POST['emoji_meter']) ? $_POST['emoji_meter'] === 'true' : false,
-        'qr_link'     => isset($_POST['qr_link'])     ? $_POST['qr_link']     === 'true' : false,
-        'info_text'   => isset($_POST['info_text'])   ? $_POST['info_text']   === 'true' : false
+        'wordcloud'       => isset($_POST['wordcloud'])       ? $_POST['wordcloud']       === 'true' : false,
+        'sentences_cloud' => isset($_POST['sentences_cloud']) ? $_POST['sentences_cloud'] === 'true' : false,
+        'pdf_viewer'      => isset($_POST['pdf_viewer'])      ? $_POST['pdf_viewer']      === 'true' : false,
+        'emoji_meter'     => isset($_POST['emoji_meter'])     ? $_POST['emoji_meter']     === 'true' : false,
+        'qr_link'         => isset($_POST['qr_link'])         ? $_POST['qr_link']         === 'true' : false,
+        'info_text'       => isset($_POST['info_text'])       ? $_POST['info_text']       === 'true' : false
     );
    
     writeJsonLocked($dataDir . 'modules_config.json', $config);
@@ -660,6 +990,11 @@ if ($action === 'get_stats') {
 if ($action === 'reset' && isset($_SESSION['is_admin'])) {
     $type = isset($_POST['type']) ? $_POST['type'] : '';
     if ($type === 'words') writeJsonLocked($dataDir . 'words.json', array());
+    if ($type === 'sentences') writeJsonLocked($dataDir . 'sentences.json', array());
+    if ($type === 'cloud') {
+        writeJsonLocked($dataDir . 'words.json', array());
+        writeJsonLocked($dataDir . 'sentences.json', array());
+    }
     if ($type === 'votes') writeJsonLocked($dataDir . 'votes.json', array());
     echo json_encode(array('success' => true));
     exit;
