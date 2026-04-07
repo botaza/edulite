@@ -7,7 +7,7 @@
     <title>Modules - EduLite</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="js/qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="js/pdf.min.js"></script>
     <style>
         body { padding: 0; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
         .game-container { max-width: 1200px; margin: 0 auto; padding: 15px; }
