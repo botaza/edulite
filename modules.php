@@ -7,7 +7,7 @@
     <title>Modules - EduLite</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="js/qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="js/pdf.min.js"></script>
     <style>
         body { padding: 0; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
         .game-container { max-width: 1200px; margin: 0 auto; padding: 15px; }
@@ -32,28 +32,25 @@
         .admin-controls p { margin: 0 0 10px 0; color: #856404; font-weight: 600; }
         .admin-controls button { background: #e74c3c; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; margin: 5px; }
         .admin-controls button.active { background: #27ae60; }
-        .admin-panel { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 15px; display: none; }
-        .admin-panel.visible { display: block; }
-        .admin-panel h3 { color: #667eea; margin: 0 0 20px 0; font-size: 20px; display: flex; align-items: center; justify-content: space-between; }
-        .admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
-        .admin-card { background: #f8f9fa; border-radius: 10px; padding: 20px; border: 2px solid #e9ecef; }
-        .admin-card h4 { color: #667eea; margin: 0 0 15px 0; font-size: 16px; }
-        .admin-card button { width: 100%; margin: 5px 0; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+       
         .btn-primary { background: #667eea; color: white; }
         .btn-success { background: #27ae60; color: white; }
         .btn-danger { background: #e74c3c; color: white; }
         .btn-warning { background: #f39c12; color: white; }
+        
         .lap-info { background: #667eea; color: white; padding: 10px 15px; border-radius: 8px; margin-bottom: 15px; text-align: center; }
         .lap-info .lap-number { font-size: 32px; font-weight: 700; }
         .lap-info .lap-label { font-size: 12px; opacity: 0.9; }
         .pdf-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: center; }
         .pdf-info .pdf-name { font-weight: 600; color: #667eea; word-break: break-all; }
         .pdf-info .pdf-time { font-size: 12px; color: #999; margin-top: 5px; }
+        
         .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 15px; }
         .stat-box { background: white; padding: 10px; border-radius: 8px; text-align: center; border: 2px solid #e9ecef; }
         .stat-box .stat-emoji { font-size: 24px; }
         .stat-box .stat-count { font-size: 20px; font-weight: 700; color: #667eea; }
         .stat-box .stat-label { font-size: 10px; color: #999; text-transform: uppercase; }
+        
         .emoji-log-section { background: rgba(255,255,255,0.98); border-radius: 15px 15px 0 0; padding: 20px; box-shadow: 0 -4px 20px rgba(0,0,0,0.15); position: fixed; bottom: 0; left: 0; right: 0; z-index: 900; max-height: 40vh; overflow-y: auto; display: none; border-top: 3px solid #667eea; }
         .emoji-log-section.visible { display: block; animation: slideUpLog 0.3s ease; }
         @keyframes slideUpLog { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -68,6 +65,7 @@
         .emoji-log-table .col-lap { background: #667eea; color: white; padding: 2px 6px; border-radius: 8px; font-size: 9px; font-weight: 600; display: inline-block; }
         .emoji-log-table .col-action { text-align: center; }
         .delete-row-btn { background: #e74c3c; color: white; border: none; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; }
+        
         .module-section { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 15px; }
         .module-section h2 { color: #667eea; margin: 0 0 20px 0; font-size: 22px; text-align: center; }
         .input-section { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 15px; }
@@ -93,13 +91,16 @@
         .username-tooltip .names { margin: 0; line-height: 1.6; max-height: 150px; overflow-y: auto; }
         .username-tooltip .names span { display: inline-block; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; margin: 2px; }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        
         .module-section.info-text-section { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 15px; font-size: 17px; line-height: 1.6; color: #2c3e50; }
         .info-text-content { white-space: pre-wrap; word-break: break-word; }
+        
+        /* PDF Viewer */
         .pdf-viewer-container { height: 70vh; background: #525659; border-radius: 10px; overflow-y: auto; position: relative; }
         .pdf-pages-container { padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
         .pdf-page-canvas { display: block; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.4); max-width: 100%; width: 100%; cursor: pointer; }
         .no-pdf { display: flex; align-items: center; justify-content: center; height: 100%; color: #999; font-size: 18px; text-align: center; padding: 40px; }
-        
+
         /* INDEPENDENT PAGE INDICATOR PANEL */
         .page-indicator-panel {
             position: fixed; top: 85px; left: 50%; transform: translateX(-50%);
@@ -111,12 +112,11 @@
             pointer-events: none; display: flex; align-items: center; gap: 8px;
             border: 1px solid rgba(255,255,255,0.2);
         }
-        .page-indicator-panel.hidden {
-            opacity: 0; transform: translateX(-50%) translateY(-10px);
-        }
+        .page-indicator-panel.hidden { opacity: 0; transform: translateX(-50%) translateY(-10px); }
 
         .pinned-pdf-container { background: #fff; border-radius: 12px; padding: 15px; text-align: center; max-width: 100%; overflow-x: auto; }
         .pinned-pdf-canvas { display: block; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.2); max-width: 100%; height: auto; }
+        
         .emoji-meter-section { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 15px; text-align: center; }
         .emoji-meter-section h2 { color: #667eea; margin: 0 0 20px 0; font-size: 22px; }
         .emoji-buttons { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; }
@@ -131,6 +131,7 @@
         .emoji-stat .stat-emoji { font-size: 24px; margin-bottom: 5px; }
         .emoji-stat .stat-count { font-size: 20px; font-weight: 700; color: #667eea; }
         .emoji-stat .stat-label { font-size: 11px; color: #999; text-transform: uppercase; }
+        
         .user-count-indicator { background: #3498db; color: white; padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: 600; margin-left: 10px; }
         .live-indicator { display: inline-flex; align-items: center; gap: 6px; background: #27ae60; color: white; padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: 600; }
         .live-dot { width: 8px; height: 8px; background: white; border-radius: 50%; animation: pulse 1s infinite; }
@@ -140,11 +141,13 @@
         .floating-emoji { position: absolute; font-size: 80px; animation: floatUp 3s ease-out forwards; opacity: 0; }
         @keyframes floatUp { 0% { transform: translateY(100vh) scale(0.5); opacity: 1; } 50% { opacity: 1; } 100% { transform: translateY(-100px) scale(1.5); opacity: 0; } }
         .hidden { display: none !important; }
+        
         .qr-section { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 20px 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 15px; text-align: center; width: 100%; box-sizing: border-box; }
         #qr-container { display: flex; justify-content: center; margin: 15px 0; }
         #qr-code { width: 100%; max-width: 300px; height: auto; aspect-ratio: 1/1; display: flex; justify-content: center; align-items: center; }
         #qr-code img, #qr-code canvas { max-width: 100%; height: auto !important; }
         .qr-link { display: block; margin-top: 12px; color: #667eea; font-weight: 600; font-size: 13px; word-break: break-all; padding: 0 10px; }
+        
         #export-modal .login-box { max-width: 480px; text-align: left; }
         #export-modal label { cursor: pointer; display: flex; align-items: center; gap: 8px; margin: 8px 0; }
         #export-modal input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; }
@@ -155,6 +158,7 @@
         .snap-meta strong { display: block; }
         .snap-meta small { color: #666; font-size: 11px; display: block; margin-top: 2px; }
         .modal-actions-flex { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 10px; }
+        
         @media (max-width: 480px) {
             .game-title { font-size: 22px; }
             .input-wrapper { flex-direction: column; }
@@ -163,7 +167,6 @@
             .emoji-btn .emoji-icon { font-size: 32px; }
             .emoji-stats { gap: 10px; }
             .emoji-stat { min-width: 60px; padding: 8px 12px; }
-            .admin-grid { grid-template-columns: 1fr; }
             #qr-code { max-width: 220px; }
             .qr-link { font-size: 12px; }
         }
@@ -211,7 +214,6 @@
     <div class="info-text-box" style="max-width:440px; text-align: center;">
         <h2>📌 Pin a PDF Page</h2>
         <p style="color:#666; margin-bottom:15px; font-size:14px;">Click a page in the viewer below to select it, then pin it.</p>
-        
         <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
             <div style="text-align:left;">
                 <strong>📖 Selected Page:</strong><br>
@@ -219,14 +221,11 @@
             </div>
             <button type="button" onclick="pinCurrentViewedPage()" class="btn-primary" style="padding:8px 14px; font-size:12px;">📌 Pin Selected</button>
         </div>
-
         <div style="margin-bottom:15px;">
             <label style="font-size:13px; color:#666; display:block; margin-bottom:5px;">Or enter a specific page number:</label>
             <input type="number" id="modal-pdf-pin-input" placeholder="e.g., 12" min="1" style="width:100%; padding:10px; border:2px solid #667eea; border-radius:8px; font-size:15px; text-align:center; box-sizing:border-box;">
         </div>
-
         <p id="modal-pdf-pin-status" style="font-size:12px; color:#999; margin:5px 0 15px 0;"></p>
-        
         <div class="modal-actions" style="justify-content: center; gap: 10px; flex-wrap: wrap;">
             <button type="button" onclick="closePdfPinModal()" style="background:#95a5a6;color:white;">Cancel</button>
             <button type="button" onclick="clearPdfPinFromModal()" class="btn-danger">Clear Pin</button>
@@ -251,6 +250,24 @@
             <button type="button" onclick="performDeleteSelected()" class="btn-danger">🗑️ Delete Selected</button>
             <button type="button" onclick="performExportSelected()" class="btn-primary">📤 Export Selected</button>
             <button type="button" onclick="performExportAll()" class="btn-success">📥 Export ALL</button>
+        </div>
+    </div>
+</div>
+
+<!-- Emoji Stats Modal (NEW - Lightweight Stats Only) -->
+<div id="emoji-stats-modal" class="info-text-modal hidden">
+    <div class="info-text-box" style="max-width: 500px;">
+        <h2>📊 Emoji Stats (All-Time)</h2>
+        <div class="stats-grid" style="margin: 20px 0;">
+            <div class="stat-box"><div class="stat-emoji">✅</div><div class="stat-count" id="modal-stat-done">0</div><div class="stat-label">Done</div></div>
+            <div class="stat-box"><div class="stat-emoji">🤔</div><div class="stat-count" id="modal-stat-unsure">0</div><div class="stat-label">Unsure</div></div>
+            <div class="stat-box"><div class="stat-emoji">😰</div><div class="stat-count" id="modal-stat-pain">0</div><div class="stat-label">Pain</div></div>
+            <div class="stat-box"><div class="stat-emoji">😊</div><div class="stat-count" id="modal-stat-happy">0</div><div class="stat-label">Happy</div></div>
+            <div class="stat-box"><div class="stat-emoji">🙋</div><div class="stat-count" id="modal-stat-help">0</div><div class="stat-label">Help</div></div>
+        </div>
+        <p style="font-size: 12px; color: #999; margin-top: 10px;">Total Votes: <span id="modal-stat-total">0</span></p>
+        <div class="modal-actions">
+            <button type="button" onclick="closeEmojiStatsModal()" class="btn-danger">Close</button>
         </div>
     </div>
 </div>
@@ -284,7 +301,7 @@
         <p>⚠️ Admin Mode: Quick Controls</p>
         <button type="button" onclick="toggleDeleteMode()" id="btn-delete-mode">🗑️ Delete</button>
         <button type="button" onclick="toggleUsernames()" id="btn-usernames">👥 Users</button>
-        <button type="button" onclick="toggleAdminPanel()" id="btn-emoji-stats">📊 Stats</button>
+        <button type="button" onclick="openEmojiStatsModal()" id="btn-emoji-stats">📊 Stats</button>
         <button type="button" onclick="newLap()" id="btn-new-lap">🏁 New Lap</button>
         <button type="button" onclick="resetEmoji('all')" id="btn-reset-emoji">🔄 Reset Emoji</button>
         <button type="button" onclick="resetCloud()" id="btn-reset-cloud">🔄 Reset Cloud</button>
@@ -302,42 +319,6 @@
         <button type="button" onclick="toggleModule('emoji_meter')" id="btn-module-emoji">📱 Emoji</button>
         <button type="button" onclick="toggleModule('qr_link')" id="btn-module-qr">🔗 QR Link</button>
         <button type="button" onclick="openExportModal()" id="btn-export" style="background:#9b59b6;">📤 Export</button>
-    </div>
-   
-    <!-- Admin Panel -->
-    <div class="admin-panel hidden" id="admin-panel">
-        <h3><span>⚙️ Admin Dashboard</span><button type="button" onclick="toggleAdminPanel()" style="background: #95a5a6; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 12px;">✕ Close</button></h3>
-        <div class="admin-grid">
-            <div class="admin-card">
-                <h4>🏁 Lap Management</h4>
-                <div class="lap-info"><div class="lap-number" id="admin-lap-number">1</div><div class="lap-label">Current Lap</div></div>
-                <button class="btn-primary" onclick="newLap()">🏁 Start New Lap</button>
-            </div>
-            <div class="admin-card">
-                <h4>📄 PDF Management</h4>
-                <div class="pdf-info" id="admin-pdf-info"><div class="pdf-name" id="admin-pdf-name">No PDF uploaded</div><div class="pdf-time" id="admin-pdf-time"></div></div>
-                <button class="btn-success" onclick="uploadPdf()">📤 Upload/Change PDF</button>
-                <button type="button" class="btn-primary" onclick="viewPdf()">👁️ View Current PDF</button>
-                <button class="btn-danger" onclick="deletePdf()">🗑️ Delete PDF</button>
-            </div>
-            <div class="admin-card">
-                <h4>🔄 Reset Controls</h4>
-                <button class="btn-danger" onclick="resetCloud()">🗑️ Clear Cloud Data</button>
-                <button class="btn-warning" onclick="resetEmoji('lap')">🔄 Reset Current Lap</button>
-                <button class="btn-danger" onclick="resetEmoji('all')">⚠️ Reset All Emoji</button>
-            </div>
-            <div class="admin-card" id="emoji-stats-card">
-                <h4>📊 Emoji Stats (All-Time)</h4>
-                <div class="stats-grid" id="admin-emoji-stats">
-                    <div class="stat-box"><div class="stat-emoji">✅</div><div class="stat-count" id="admin-stat-done">0</div><div class="stat-label">Done</div></div>
-                    <div class="stat-box"><div class="stat-emoji">🤔</div><div class="stat-count" id="admin-stat-unsure">0</div><div class="stat-label">Unsure</div></div>
-                    <div class="stat-box"><div class="stat-emoji">😰</div><div class="stat-count" id="admin-stat-pain">0</div><div class="stat-label">Pain</div></div>
-                    <div class="stat-box"><div class="stat-emoji">😊</div><div class="stat-count" id="admin-stat-happy">0</div><div class="stat-label">Happy</div></div>
-                    <div class="stat-box"><div class="stat-emoji">🙋</div><div class="stat-count" id="admin-stat-help">0</div><div class="stat-label">Help</div></div>
-                </div>
-                <p style="font-size: 11px; color: #999; margin-top: 10px;">Total: <span id="admin-total-votes">0</span></p>
-            </div>
-        </div>
     </div>
    
     <!-- INFO TEXT MODULE -->
@@ -437,7 +418,7 @@
     let currentPdfFilename = '';
     let pdfDoc = null;
     let currentInfoText = '';
-    let currentViewedPage = 0; // Starts at 0, waits for user input
+    let currentViewedPage = 0; // 0 = not selected yet
     let isPdfRendering = false;
     const COLOR_PALETTE = ['#2c3e50', '#34495e', '#5d4e6d', '#4a5568', '#2d5d7c', '#6b4c7a', '#3d6b5f', '#7c524a', '#4a6b7c', '#5a4d7a'];
     const EMOJI_MAP = {'done': '✅', 'unsure': '🤔', 'pain': '😰', 'happy': '😊', 'help': '🙋'};
@@ -459,32 +440,72 @@
     function checkAdminStatus() {
         fetch(API + '?action=check_session').then(r => r.json()).then(data => {
             isAdmin = data.is_admin || false;
-            if (isAdmin) { document.getElementById('admin-badge').classList.remove('hidden'); document.getElementById('admin-controls').classList.remove('hidden'); loadClassName(); }
+            if (isAdmin) { 
+                document.getElementById('admin-badge').classList.remove('hidden'); 
+                document.getElementById('admin-controls').classList.remove('hidden'); 
+                loadClassName(); 
+            }
         }).catch(err => console.error(err));
     }
     function loadModulesConfig() {
         fetch(API + '?action=get_modules_config').then(r => r.json()).then(data => {
             if (data.success) {
                 const s = data.config;
-                modulesConfig = { wordcloud: s.wordcloud !== undefined ? s.wordcloud : false, sentences_cloud: s.sentences_cloud !== undefined ? s.sentences_cloud : false, pdf_viewer: s.pdf_viewer !== undefined ? s.pdf_viewer : false, emoji_meter: s.emoji_meter !== undefined ? s.emoji_meter : true, qr_link: s.qr_link !== undefined ? s.qr_link : false, info_text: s.info_text !== undefined ? s.info_text : false };
+                modulesConfig = { 
+                    wordcloud: s.wordcloud !== undefined ? s.wordcloud : false, 
+                    sentences_cloud: s.sentences_cloud !== undefined ? s.sentences_cloud : false, 
+                    pdf_viewer: s.pdf_viewer !== undefined ? s.pdf_viewer : false, 
+                    emoji_meter: s.emoji_meter !== undefined ? s.emoji_meter : true, 
+                    qr_link: s.qr_link !== undefined ? s.qr_link : false, 
+                    info_text: s.info_text !== undefined ? s.info_text : false 
+                };
                 loadInfoText(); renderModules(); updateAdminButtons();
             }
         }).catch(err => console.error(err));
     }
     function loadInfoText() {
         fetch(API + '?action=get_info_text').then(r => r.json()).then(data => {
-            if (data.success) { currentInfoText = data.text || ''; const c = document.getElementById('info-text-content'); if (c) c.innerHTML = currentInfoText.replace(/\n/g, '<br>'); }
+            if (data.success) { 
+                currentInfoText = data.text || ''; 
+                const c = document.getElementById('info-text-content'); 
+                if (c) c.innerHTML = currentInfoText.replace(/\n/g, '<br>'); 
+            }
         });
     }
     function saveInfoText() {
-        if (!isAdmin) return; const t = document.getElementById('admin-info-text')?.value.trim() || document.getElementById('modal-info-text')?.value.trim() || '';
-        fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=save_info_text&text=' + encodeURIComponent(t) }).then(r => r.json()).then(data => {
-            if (data.success) { alert('✅ Info text saved successfully!'); currentInfoText = t; const c = document.getElementById('info-text-content'); if (c) c.innerHTML = t.replace(/\n/g, '<br>'); closeInfoTextEditor(); } else alert('❌ Failed to save info text');
+        if (!isAdmin) return; 
+        const t = document.getElementById('admin-info-text')?.value.trim() || document.getElementById('modal-info-text')?.value.trim() || '';
+        fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=save_info_text&text=' + encodeURIComponent(t) })
+        .then(r => r.json()).then(data => {
+            if (data.success) { 
+                alert('✅ Info text saved successfully!'); 
+                currentInfoText = t; 
+                const c = document.getElementById('info-text-content'); 
+                if (c) c.innerHTML = t.replace(/\n/g, '<br>'); 
+                closeInfoTextEditor(); 
+            } else alert('❌ Failed to save info text');
         }).catch(() => alert('❌ Network error while saving'));
     }
-    function openInfoTextEditor() { if (!isAdmin) return; const m = document.getElementById('info-text-modal'), t = document.getElementById('modal-info-text'); if (m && t) { t.value = currentInfoText; m.classList.remove('hidden'); } }
+    function openInfoTextEditor() { 
+        if (!isAdmin) return; 
+        const m = document.getElementById('info-text-modal'), t = document.getElementById('modal-info-text'); 
+        if (m && t) { t.value = currentInfoText; m.classList.remove('hidden'); } 
+    }
     function closeInfoTextEditor() { const m = document.getElementById('info-text-modal'); if (m) m.classList.add('hidden'); }
-    function saveInfoTextFromModal() { if (!isAdmin) return; const t = document.getElementById('modal-info-text').value.trim(); fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=save_info_text&text=' + encodeURIComponent(t) }).then(r => r.json()).then(data => { if (data.success) { alert('✅ Info text saved successfully!'); currentInfoText = t; const c = document.getElementById('info-text-content'); if (c) c.innerHTML = t.replace(/\n/g, '<br>'); closeInfoTextEditor(); } else alert('❌ Failed to save info text'); }).catch(() => alert('❌ Network error while saving')); }
+    function saveInfoTextFromModal() { 
+        if (!isAdmin) return; 
+        const t = document.getElementById('modal-info-text').value.trim(); 
+        fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=save_info_text&text=' + encodeURIComponent(t) })
+        .then(r => r.json()).then(data => { 
+            if (data.success) { 
+                alert('✅ Info text saved successfully!'); 
+                currentInfoText = t; 
+                const c = document.getElementById('info-text-content'); 
+                if (c) c.innerHTML = t.replace(/\n/g, '<br>'); 
+                closeInfoTextEditor(); 
+            } else alert('❌ Failed to save info text'); 
+        }).catch(() => alert('❌ Network error while saving')); 
+    }
 
     // ========================================================================
     // CLASS NAME MODAL FUNCTIONS
@@ -492,27 +513,86 @@
     function loadClassName() {
         fetch(API + '?action=get_class_config').then(r => r.json()).then(data => {
             if (data.success) {
-                const name = data.class_name || ''; document.getElementById('modal-class-name').value = name;
+                const name = data.class_name || ''; 
+                document.getElementById('modal-class-name').value = name;
                 const header = document.querySelector('.game-title');
-                if (header) { const e = header.querySelector('.class-badge'); if (e) e.remove(); if (name) { const b = document.createElement('span'); b.className = 'class-badge'; b.textContent = '🏫 ' + name; b.style.cssText = 'background:#8e44ad;color:white;padding:5px 12px;border-radius:15px;font-size:13px;font-weight:600;'; header.appendChild(b); } }
+                if (header) { 
+                    const e = header.querySelector('.class-badge'); 
+                    if (e) e.remove(); 
+                    if (name) { 
+                        const b = document.createElement('span'); 
+                        b.className = 'class-badge'; 
+                        b.textContent = '🏫 ' + name; 
+                        b.style.cssText = 'background:#8e44ad;color:white;padding:5px 12px;border-radius:15px;font-size:13px;font-weight:600;'; 
+                        header.appendChild(b); 
+                    } 
+                }
             }
         });
     }
     function openClassNameModal() { if (!isAdmin) return; const m = document.getElementById('class-name-modal'); if (m) m.classList.remove('hidden'); }
     function closeClassNameModal() { const m = document.getElementById('class-name-modal'); if (m) m.classList.add('hidden'); }
-    function saveClassNameFromModal() { if (!isAdmin) return; const n = document.getElementById('modal-class-name').value.trim(); fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=save_class_config&class_name=' + encodeURIComponent(n) }).then(r => r.json()).then(d => { if (d.success) { alert('✅ Class name saved!'); loadClassName(); closeClassNameModal(); } else alert('❌ Failed to save class name'); }); }
+    function saveClassNameFromModal() { 
+        if (!isAdmin) return; 
+        const n = document.getElementById('modal-class-name').value.trim(); 
+        fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=save_class_config&class_name=' + encodeURIComponent(n) })
+        .then(r => r.json()).then(d => { if (d.success) { alert('✅ Class name saved!'); loadClassName(); closeClassNameModal(); } else alert('❌ Failed to save class name'); }); 
+    }
+
+    // ========================================================================
+    // EMOJI STATS MODAL (Fixed)
+    // ========================================================================
+    function openEmojiStatsModal() {
+        document.getElementById('emoji-stats-modal').classList.remove('hidden');
+        updateEmojiStatsDisplay();
+    }
+    function closeEmojiStatsModal() {
+        document.getElementById('emoji-stats-modal').classList.add('hidden');
+    }
+
+    // Updates both public stats and modal stats
+    function updateEmojiStatsDisplay(data) {
+        if (!data) return;
+        // Public stats (current lap usually, but let's use allTime if available or currentLap as per API)
+        // API returns currentLap for public, allTime for admin
+        const publicData = data.currentLap || {};
+        document.getElementById('stat-done').textContent = publicData.done || 0;
+        document.getElementById('stat-unsure').textContent = publicData.unsure || 0;
+        document.getElementById('stat-pain').textContent = publicData.pain || 0;
+        document.getElementById('stat-happy').textContent = publicData.happy || 0;
+        document.getElementById('stat-help').textContent = publicData.help || 0;
+
+        // Admin Modal Stats (All-Time)
+        if (isAdmin && data.allTime) {
+            const total = data.allTime;
+            document.getElementById('modal-stat-done').textContent = total.done || 0;
+            document.getElementById('modal-stat-unsure').textContent = total.unsure || 0;
+            document.getElementById('modal-stat-pain').textContent = total.pain || 0;
+            document.getElementById('modal-stat-happy').textContent = total.happy || 0;
+            document.getElementById('modal-stat-help').textContent = total.help || 0;
+            document.getElementById('modal-stat-total').textContent = total.total || 0;
+        }
+    }
+
+    function updateEmojiStats() {
+        fetch(API + '?action=get_emoji_stats&t=' + Date.now())
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                updateEmojiStatsDisplay(data);
+            }
+        }).catch(e => console.error(e));
+    }
 
     // ========================================================================
     // PDF PINNING & RENDERING (CLICK TO SELECT)
     // ========================================================================
-    
     async function loadPdf() {
         if (isPdfRendering) return;
         isPdfRendering = true;
         const viewer = document.getElementById('pdf-viewer');
         const indicator = document.getElementById('pdf-page-indicator');
         
-        // Reset selection state
         currentViewedPage = 0;
         document.getElementById('current-page-num').textContent = '?';
         document.getElementById('pin-current-page-display').textContent = '? (Click a page)';
@@ -540,11 +620,9 @@
             pdfDoc = await pdfjsLib.getDocument('data/' + currentPdfFilename + '?t=' + Date.now()).promise;
             container.innerHTML = '';
 
-            // Set Total Pages
             const totalPagesSpan = document.getElementById('total-pages-num');
             if(totalPagesSpan) totalPagesSpan.textContent = pdfDoc.numPages;
 
-            // STRICT SEQUENTIAL RENDERING
             for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
                 const page = await pdfDoc.getPage(pageNum);
                 const scale = 1.5;
@@ -555,12 +633,11 @@
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
                 
-                // Add click listener to update page number
+                // Click listener to select page
                 canvas.addEventListener('click', () => {
                     currentViewedPage = pageNum;
                     document.getElementById('current-page-num').textContent = pageNum;
                     document.getElementById('pin-current-page-display').textContent = pageNum;
-                    // Panel is visible, but ensures user sees the update
                     document.getElementById('pdf-page-indicator').classList.remove('hidden');
                 });
 
@@ -573,6 +650,7 @@
         } catch (err) {
             console.error('PDF render error:', err);
             viewer.innerHTML = '<div class="no-pdf"><div><p style="font-size:48px;margin-bottom:20px;color:#e74c3c;">⚠️</p><p>Failed to load PDF. Check file integrity.</p></div></div>';
+            if (indicator) indicator.classList.add('hidden');
         } finally {
             isPdfRendering = false;
         }
@@ -610,13 +688,11 @@
 
     function openPdfPinModal() {
         if (!isAdmin) return;
-        // Sync display with current clicked page
         if(currentViewedPage > 0) {
              document.getElementById('pin-current-page-display').textContent = currentViewedPage;
         } else {
              document.getElementById('pin-current-page-display').textContent = '? (Click a page)';
         }
-        
         document.getElementById('modal-pdf-pin-input').value = '';
         showPinStatus('Ready to pin.', 'info');
         fetch(API + '?action=get_pdf_config').then(r => r.json()).then(d => {
@@ -625,37 +701,26 @@
         document.getElementById('pdf-pin-modal').classList.remove('hidden');
     }
     function closePdfPinModal() { document.getElementById('pdf-pin-modal').classList.add('hidden'); }
-    
     function pinCurrentViewedPage() {
-        // Check if user has clicked a page
-        if (currentViewedPage < 1) {
-            return showPinStatus('⚠️ Please click a page in the viewer to select it first.', 'error');
-        }
+        if (currentViewedPage < 1) { return showPinStatus('⚠️ Click a page in the viewer first.', 'error'); }
         setPdfPin(currentViewedPage);
     }
-
     function pinSpecificPage() {
         const input = document.getElementById('modal-pdf-pin-input');
         const page = parseInt(input.value);
         if (!pdfDoc) return showPinStatus('⚠️ PDF not loaded yet.', 'error');
-        if (isNaN(page) || page < 1 || page > pdfDoc.numPages) return showPinStatus(`⚠️ Enter a valid page (1-${pdfDoc.numPages})`, 'error');
+        if (isNaN(page) || page < 1 || page > pdfDoc.numPages) return showPinStatus(`⚠️ Valid page (1-${pdfDoc.numPages})`, 'error');
         setPdfPin(page);
     }
-
     function setPdfPin(page) {
         showPinStatus(`Pinning Page ${page}...`, 'info');
         fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: `action=set_pdf_config&page=${page}` })
         .then(r => r.json()).then(d => {
-            if (d.success) {
-                showPinStatus(`✅ Pinned Page ${page}!`, 'success');
-                setTimeout(() => { closePdfPinModal(); checkPdfPin(); }, 600);
-            } else { showPinStatus('❌ Failed to pin page.', 'error'); }
+            if (d.success) { showPinStatus(`✅ Pinned Page ${page}!`, 'success'); setTimeout(() => { closePdfPinModal(); checkPdfPin(); }, 600); }
+            else showPinStatus('❌ Failed.', 'error');
         }).catch(() => showPinStatus('❌ Network error.', 'error'));
     }
-
     function clearPdfPinFromModal() {
-        if (!isAdmin) return;
-        showPinStatus('Clearing pin...', 'info');
         fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=set_pdf_config&page=0' })
         .then(r => r.json()).then(d => {
             if (d.success) {
@@ -691,9 +756,7 @@
         fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: `action=update_modules_config&wordcloud=${modulesConfig.wordcloud}&sentences_cloud=${modulesConfig.sentences_cloud}&pdf_viewer=${modulesConfig.pdf_viewer}&emoji_meter=${modulesConfig.emoji_meter}&qr_link=${modulesConfig.qr_link}&info_text=${modulesConfig.info_text}` }).then(r => r.json()).then(d => { if (!d.success) { modulesConfig[module] = !modulesConfig[module]; renderModules(); updateAdminButtons(); alert('❌ Failed to update module config'); } }).catch(e => { modulesConfig[module] = !modulesConfig[module]; renderModules(); updateAdminButtons(); console.error(e); });
     }
     function waitForPdfReady(maxAttempts = 10, interval = 300) { let a = 0; return new Promise((res, rej) => { const c = () => fetch(API + '?action=get_pdf_info&t=' + Date.now()).then(r => r.json()).then(d => d.success && d.hasPdf ? res(d) : a < maxAttempts ? (a++, setTimeout(c, interval)) : rej()).catch(e => a < maxAttempts ? (a++, setTimeout(c, interval)) : rej()); c(); }); }
-    function toggleAdminPanel() { if (!isAdmin) return; const s = document.getElementById('emoji-stats-card'), b = document.getElementById('btn-emoji-stats'); if (!s || !b) return; const h = s.classList.contains('hidden'); document.querySelectorAll('#admin-panel .admin-card').forEach(c => c.classList.add('hidden')); if (h) { s.classList.remove('hidden'); document.getElementById('admin-panel').classList.add('visible'); b.classList.add('active'); b.textContent = '📊 Stats ON'; updateAdminPanel(); } else { s.classList.add('hidden'); document.getElementById('admin-panel').classList.remove('visible'); b.classList.remove('active'); b.textContent = '📊 Stats'; } }
-    function updateEmojiStats() { fetch(API + '?action=get_emoji_stats&t=' + Date.now()).then(r => r.json()).then(d => { if (!d.success) return; const l = d.currentLap || {}; document.getElementById('stat-done').textContent = l.done || 0; document.getElementById('stat-unsure').textContent = l.unsure || 0; document.getElementById('stat-pain').textContent = l.pain || 0; document.getElementById('stat-happy').textContent = l.happy || 0; document.getElementById('stat-help').textContent = l.help || 0; if (isAdmin) { const a = d.allTime || {}; document.getElementById('admin-stat-done').textContent = a.done || 0; document.getElementById('admin-stat-unsure').textContent = a.unsure || 0; document.getElementById('admin-stat-pain').textContent = a.pain || 0; document.getElementById('admin-stat-happy').textContent = a.happy || 0; document.getElementById('admin-stat-help').textContent = a.help || 0; document.getElementById('admin-total-votes').textContent = a.total || 0; if (d.lapNumber !== undefined) document.getElementById('admin-lap-number').textContent = d.lapNumber; } }).catch(e => console.error(e)); }
-    function updateAdminPanel() { if (!isAdmin) return; fetch(API + '?action=get_emoji_stats&t=' + Date.now()).then(r => r.json()).then(d => { if (!d.success) return; if (d.lapNumber !== undefined) document.getElementById('admin-lap-number').textContent = d.lapNumber; const a = d.allTime || {}; document.getElementById('admin-stat-done').textContent = a.done || 0; document.getElementById('admin-stat-unsure').textContent = a.unsure || 0; document.getElementById('admin-stat-pain').textContent = a.pain || 0; document.getElementById('admin-stat-happy').textContent = a.happy || 0; document.getElementById('admin-stat-help').textContent = a.help || 0; document.getElementById('admin-total-votes').textContent = a.total || 0; }).catch(e => console.error(e)); }
+    function updateAdminPanel() { updateEmojiStats(); } // Keep API compatibility if needed
     function createSnapshot() { if (!isAdmin) return; if (!confirm('📸 Create snapshot of current words, sentences, and active users?')) return; fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=create_snapshot' }).then(r => r.json()).then(d => { if (d.success) alert('✅ Snapshot created!'); else alert('❌ Failed to create snapshot'); }).catch(() => alert('❌ Network error')); }
     function resetCloud() { if (!isAdmin) return; if (!confirm('⚠️ Clear ALL current words and sentences?')) return; fetch(API, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'action=reset&type=cloud' }).then(r => r.json()).then(d => { if (d.success) { alert('✅ Cloud data cleared!'); renderCloud(); renderSentencesCloud(); } }).catch(() => alert('❌ Network error')); }
     function openExportModal() { if (!isAdmin) return; document.getElementById('export-modal').classList.remove('hidden'); loadSnapshotList(); }
@@ -737,6 +800,7 @@
     document.getElementById('export-modal')?.addEventListener('click', e => { if (e.target === this) closeExportModal(); });
     document.getElementById('class-name-modal')?.addEventListener('click', e => { if (e.target === this) closeClassNameModal(); });
     document.getElementById('pdf-pin-modal')?.addEventListener('click', e => { if (e.target === this) closePdfPinModal(); });
+    document.getElementById('emoji-stats-modal')?.addEventListener('click', e => { if (e.target === this) closeEmojiStatsModal(); });
 </script>
 </body>
 </html>
